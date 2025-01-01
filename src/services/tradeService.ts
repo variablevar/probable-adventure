@@ -17,14 +17,20 @@ import {
   } from '@solana/spl-token';
   import { Config } from '../config/config';
   import BN from 'bn.js';
-  
+  export interface TokenInfo {
+    mintAddress?: string;
+    symbol?: string;
+    name?: string;
+    decimals?: number;
+    tokenAccount?: string;
+  }
   export interface TradeInfo {
-    type: 'buy' | 'sell';
-    tokenA: string;
-    tokenB: string;
-    amount: number;
-    price: number;
-    timestamp: number;
+    type?: 'buy' | 'sell';
+    tokenA?: TokenInfo | string;
+    tokenB?: TokenInfo | string;
+    amount?: number;
+    price?: number;
+    timestamp?: number;
     amountIn?: number;
     amountOut?: number;
     slippage?: number;
@@ -79,7 +85,7 @@ import {
         }
   
         // Parse the swap details from logs
-        const swapInfo = await this.parseSwapLogs(logs, transaction);
+        const swapInfo = await this.decodeSwapInstruction(transaction);
         if (!swapInfo) {
           return null;
         }
@@ -107,61 +113,124 @@ import {
         log.includes(this.RAYDIUM_LIQUIDITY_PROGRAM_ID.toString())
       );
     }
-  
-    private async parseSwapLogs(
-        logs: string[],
-        transaction: VersionedTransactionResponse
-      ): Promise<any> {
-        // Find the relevant instruction with the Raydium Liquidity Program ID
-        const instructions = transaction.transaction.message.compiledInstructions;
-        const accountKeys = transaction.transaction.message.getAccountKeys();
 
-        const swapInstruction = instructions.find((instruction) => {
-            const programId = accountKeys.get(instruction.programIdIndex)?.toString(); // Resolve program ID
-            return programId === this.RAYDIUM_LIQUIDITY_PROGRAM_ID.toString(); // Replace with desired program ID
-        });
-      
-        if (!swapInstruction) {
-          return null;
-        }
-      
-        // Decode the instruction data (you need a utility to decode this based on Raydium's layout)
-        const decodedInstruction = this.decodeSwapInstruction(Buffer.from(swapInstruction.data.buffer));
-      
-        if (!decodedInstruction) {
-          return null;
-        }
-      
-        // Return parsed data with relevant information from the swap
-        return {
-          type: 'swap',
-          tokenA: decodedInstruction.tokenA, // Input token (e.g., SOL)
-          tokenB: decodedInstruction.tokenB, // Output token (e.g., USDC)
-          amountIn: decodedInstruction.amountIn, // Amount of tokenA being swapped
-          amountOut: decodedInstruction.amountOut, // Amount of tokenB expected
-          price: decodedInstruction.price, // Exchange rate between tokenA and tokenB
-          slippage: decodedInstruction.slippage, // Slippage tolerance
-          swapTransaction: transaction.transaction.signatures[0], // Transaction signature
-        };
-      }
-      private decodeSwapInstruction(data: Buffer): any {
-        // Implement the logic to decode the swap data structure
-        // This is a simplified example:
+      private async getTokenInfo(tokenAccountAddress: string): Promise<TokenInfo> {
         
-        const tokenA = data.slice(0, 32).toString(); // Example of extracting tokenA address
-        const tokenB = data.slice(32, 64).toString(); // Example of extracting tokenB address
-        const amountIn = data.readBigUint64LE(64); // Read amountIn from buffer
-        const amountOut = data.readBigUint64LE(72); // Read amountOut from buffer
-        const price = amountOut / amountIn; // Simple price calculation
+        // Step 1: Fetch Token Account Info
+        const tokenAccount = new PublicKey(tokenAccountAddress);
+        const accountInfo = await this.connection.getAccountInfo(tokenAccount);
       
-        return {
-          tokenA,
-          tokenB,
-          amountIn,
-          amountOut,
-          price,
-          slippage: 0.005, // Placeholder for slippage, adjust as needed
+        if (!accountInfo) {
+          throw new Error('Token account not found');
+        }
+      
+        // Step 2: Extract Mint Address (first 32 bytes of the token account data)
+        const mintAddress = new PublicKey(accountInfo.data.slice(0, 32));
+        console.log('Token Mint Address:', mintAddress.toBase58());
+      
+        // Step 3: Fetch Mint Info
+        const mintInfo = await this.connection.getAccountInfo(mintAddress);
+      
+        if (!mintInfo) {
+          throw new Error('Mint account info not found');
+        }
+      
+        // Step 4: Decode the token data (mint info)
+        const data = mintInfo.data;
+        const symbol = String.fromCharCode(...data.slice(0, 32));  // Simplified symbol extraction
+        const name = String.fromCharCode(...data.slice(32, 64));    // Simplified name extraction
+        const decimals = data[64];  // Assuming decimals are in byte 64
+      
+        // Step 5: Return Token Info Object
+        const tokenInfo: TokenInfo = {
+          mintAddress: mintAddress.toBase58(),
+          symbol: symbol.trim(),
+          name: name.trim(),
+          decimals: decimals,
+          tokenAccount: tokenAccountAddress,
         };
+      
+        return tokenInfo;
+      }
+
+      private async decodeSwapInstruction(txResponse:VersionedTransactionResponse): Promise<TradeInfo>{
+        if (!txResponse) {
+          console.log("Transaction not found");
+        }
+    
+        const { transaction, meta, blockTime } = txResponse;
+    
+        if (!transaction || !meta) {
+          console.log("Incomplete transaction data");
+        }
+    
+        // Initialize swap details object
+        const swapDetails: Partial<TradeInfo> = {
+          
+          timestamp: blockTime ? blockTime * 1000 : Date.now(),
+        };
+    
+        const logs = meta?.logMessages || [];
+    
+        // Step 1: Parse logs to detect swap instructions
+        for (const log of logs) {
+          if (log.includes("Instruction: SwapV2")) {
+            // Example log format might contain these key amounts; you need to extract them first
+            const amountInMatch = log.match(/amountIn: (\d+(\.\d+)?)/);
+            const amountOutMatch = log.match(/amountOut: (\d+(\.\d+)?)/);
+          
+            const amountIn = amountInMatch ? parseFloat(amountInMatch[1]) : 0;
+            const amountOut = amountOutMatch ? parseFloat(amountOutMatch[1]) : 0;
+          
+            // Determine if it's a buy or sell based on the amount values
+            if (amountIn > amountOut) {
+              swapDetails.type = "sell"; // Amount in is greater, so it's a sell
+            } else if (amountOut > amountIn) {
+              swapDetails.type = "buy"; // Amount out is greater, so it's a buy
+            }
+          }
+          
+    
+          if (log.includes("ray_log:")) {
+            const encodedData = log.split("ray_log: ")[1];
+            const buffer = Buffer.from(encodedData, "base64");
+    
+            // Decode Raydium-specific swap data (example schema)
+            const feeGrowth = buffer.readBigInt64LE(0); // Example position
+            console.log("Decoded fee growth:", feeGrowth);
+          }
+    
+          if (log.includes("Instruction: TransferChecked")) {
+            // Parse token transfer details for amountIn/amountOut
+            // You may need to look at account keys from `transaction.message.accountKeys`
+          }
+        }
+
+        // Step 2: Extract account keys for token A and token B
+        const accountKeys = transaction.message.staticAccountKeys.map((key) => key.toBase58());
+
+        // Raydium's convention: Token A and Token B are typically the first and second token accounts
+        // Adjust indices based on program-specific conventions or logs
+        swapDetails.tokenA = accountKeys[meta?.preTokenBalances?.[0]?.accountIndex ?? 0];
+        swapDetails.tokenB = accountKeys[meta?.preTokenBalances?.[1]?.accountIndex ?? 1] ;
+
+        if (swapDetails.tokenA) {
+          swapDetails.tokenA = await this.getTokenInfo(swapDetails.tokenA)
+        }
+        if (swapDetails.tokenB) {
+          swapDetails.tokenB = await this.getTokenInfo(swapDetails.tokenB)
+        }
+
+        // Step 3: Populate additional fields
+        const amountIn = meta?.preTokenBalances?.[0]?.uiTokenAmount?.uiAmount || 0;
+        const amountOut = meta?.postTokenBalances?.[1]?.uiTokenAmount?.uiAmount || 0;
+
+        swapDetails.amountIn = amountIn;
+        swapDetails.amountOut = amountOut;
+        swapDetails.amount = amountIn; // Defaulting to input amount for now
+        swapDetails.price = amountOut > 0 ? amountIn / amountOut : 0; // Avoid divide-by-zero errors
+
+        return swapDetails;
       }
       
   
@@ -186,7 +255,7 @@ import {
   
         // 3. Calculate amounts with slippage
         const { amountIn, minimumAmountOut } = this.calculateAmounts(
-          tradeInfo.amount,
+          tradeInfo.amount || 0,
           tradeInfo.slippage || 1 // Default 1% slippage
         );
   

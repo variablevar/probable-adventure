@@ -1,7 +1,7 @@
 import { Telegraf, Context, Markup } from 'telegraf';
 import { Config } from '../config/config';
 import { SolanaService } from './solanaService';
-import { TradeInfo, TradeService } from './tradeService';
+import { TokenInfo, TradeInfo, TradeService } from './tradeService';
 import { message } from 'telegraf/filters';
 import { PrismaClient } from '@prisma/client';
 import { PublicKey } from '@solana/web3.js';
@@ -335,16 +335,37 @@ Need more help? Contact support at @yoursupport
       }
     }
   }
-
   private formatTradeMessage(tradeInfo: TradeInfo): string {
+    // Helper function to get the symbol from token info or string
+    const getTokenSymbol = (token: TokenInfo | string): string => {
+      if (typeof token === 'string') {
+        return token;
+      } else if (token && token.symbol) {
+        return token.symbol;
+      }
+      return 'Unknown Token';
+    };
+  
+    // Get formatted token symbols
+    const tokenASymbol = tradeInfo.tokenA && getTokenSymbol(tradeInfo.tokenA);
+    const tokenBSymbol = tradeInfo.tokenB && getTokenSymbol(tradeInfo.tokenB);
+  
+    // Prepare trade type
+    const tradeType = tradeInfo.type ? tradeInfo.type.toUpperCase() : 'UNKNOWN';
+  
+    // Format timestamp to a readable string
+    const formattedTimestamp = tradeInfo.timestamp
+      ? new Date(tradeInfo.timestamp).toLocaleString()
+      : 'Unknown Time';
+  
     return `
-🔄 *New Trade Detected*
-Type: \`${tradeInfo.type.toUpperCase()}\`
-Pair: \`${tradeInfo.tokenA}/${tradeInfo.tokenB}\`
-Amount: \`${tradeInfo.amount} ${tradeInfo.tokenA}\`
-Price: \`${tradeInfo.price} ${tradeInfo.tokenB}\`
-Time: \`${new Date(tradeInfo.timestamp).toLocaleString()}\`
-    `;
+  🔄 *New Trade Detected*
+  Type: \`${tradeType}\`
+  Pair: \`${tokenASymbol}/${tokenBSymbol}\`
+  Amount: \`${tradeInfo.amount} ${tokenASymbol}\`
+  Price: \`${tradeInfo.price} ${tokenBSymbol}\`
+  Time: \`${formattedTimestamp}\`
+      `;
   }
 
    // Parse input to get a list of wallet addresses
