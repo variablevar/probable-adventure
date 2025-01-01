@@ -11,13 +11,16 @@ import {
   } from '@solana/web3.js';
   import { 
     TOKEN_PROGRAM_ID, 
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    MintLayout,
+    AccountLayout,
     createAssociatedTokenAccountInstruction,
     getAssociatedTokenAddress,
-    ASSOCIATED_TOKEN_PROGRAM_ID
   } from '@solana/spl-token';
   import { Config } from '../config/config';
   import BN from 'bn.js';
-  export interface TokenInfo {
+import { Token } from '@raydium-io/raydium-sdk';
+export interface TokenInfo {
     mintAddress?: string;
     symbol?: string;
     name?: string;
@@ -25,6 +28,7 @@ import {
     tokenAccount?: string;
   }
   export interface TradeInfo {
+    targetedWallet:string;
     type?: 'buy' | 'sell';
     tokenA?: TokenInfo | string;
     tokenB?: TokenInfo | string;
@@ -70,8 +74,9 @@ import {
     }
   
     public async parseTradeInfo(
-      transaction: VersionedTransactionResponse
-    ): Promise<TradeInfo | null> {
+      transaction: VersionedTransactionResponse,
+
+    ): Promise<Partial<TradeInfo> | null> {
       try {
         if (!transaction.meta || !transaction.meta.logMessages) {
           return null;
@@ -86,6 +91,8 @@ import {
   
         // Parse the swap details from logs
         const swapInfo = await this.decodeSwapInstruction(transaction);
+        console.log(swapInfo);
+        
         if (!swapInfo) {
           return null;
         }
@@ -114,46 +121,9 @@ import {
       );
     }
 
-      private async getTokenInfo(tokenAccountAddress: string): Promise<TokenInfo> {
-        
-        // Step 1: Fetch Token Account Info
-        const tokenAccount = new PublicKey(tokenAccountAddress);
-        const accountInfo = await this.connection.getAccountInfo(tokenAccount);
-      
-        if (!accountInfo) {
-          throw new Error('Token account not found');
-        }
-      
-        // Step 2: Extract Mint Address (first 32 bytes of the token account data)
-        const mintAddress = new PublicKey(accountInfo.data.slice(0, 32));
-        console.log('Token Mint Address:', mintAddress.toBase58());
-      
-        // Step 3: Fetch Mint Info
-        const mintInfo = await this.connection.getAccountInfo(mintAddress);
-      
-        if (!mintInfo) {
-          throw new Error('Mint account info not found');
-        }
-      
-        // Step 4: Decode the token data (mint info)
-        const data = mintInfo.data;
-        const symbol = String.fromCharCode(...data.slice(0, 32));  // Simplified symbol extraction
-        const name = String.fromCharCode(...data.slice(32, 64));    // Simplified name extraction
-        const decimals = data[64];  // Assuming decimals are in byte 64
-      
-        // Step 5: Return Token Info Object
-        const tokenInfo: TokenInfo = {
-          mintAddress: mintAddress.toBase58(),
-          symbol: symbol.trim(),
-          name: name.trim(),
-          decimals: decimals,
-          tokenAccount: tokenAccountAddress,
-        };
-      
-        return tokenInfo;
-      }
+    
 
-      private async decodeSwapInstruction(txResponse:VersionedTransactionResponse): Promise<TradeInfo>{
+      private async decodeSwapInstruction(txResponse:VersionedTransactionResponse): Promise<Partial<TradeInfo>>{
         if (!txResponse) {
           console.log("Transaction not found");
         }
@@ -215,10 +185,10 @@ import {
         swapDetails.tokenB = accountKeys[meta?.preTokenBalances?.[1]?.accountIndex ?? 1] ;
 
         if (swapDetails.tokenA) {
-          swapDetails.tokenA = await this.getTokenInfo(swapDetails.tokenA)
+          swapDetails.tokenA = await this.getTokenDetails(swapDetails.tokenA)
         }
         if (swapDetails.tokenB) {
-          swapDetails.tokenB = await this.getTokenInfo(swapDetails.tokenB)
+          swapDetails.tokenB = await this.getTokenDetails(swapDetails.tokenB)
         }
 
         // Step 3: Populate additional fields
@@ -230,10 +200,78 @@ import {
         swapDetails.amount = amountIn; // Defaulting to input amount for now
         swapDetails.price = amountOut > 0 ? amountIn / amountOut : 0; // Avoid divide-by-zero errors
 
+        console.log(swapDetails,`here`);
+        
         return swapDetails;
       }
       
   
+      private async getTokenDetails(mintAddress: string): Promise<TokenInfo> {
+        try {
+          const mintPublicKey = new PublicKey(mintAddress);
+      
+          // Fetch mint account information
+          const mintInfo = await this.connection.getAccountInfo(mintPublicKey);
+          if (!mintInfo) {
+            throw new Error('Mint account not found');
+          }
+      
+          // Decode mint data
+          const mintData = MintLayout.decode(mintInfo.data);
+          const decimals = mintData.decimals;
+      
+          // Fetch metadata account associated with the mint
+          const metadataAddress = await this.findMetadataAddress(mintPublicKey);
+          const metadataInfo = await this.connection.getAccountInfo(metadataAddress);
+      
+          if (!metadataInfo) {
+            throw new Error('Metadata account not found');
+          }
+      
+          const metadata = this.decodeMetadata(metadataInfo.data);
+      
+          // Construct TokenInfo
+          return {
+            mintAddress: mintAddress,
+            symbol: metadata.symbol,
+            name: metadata.name,
+            decimals: decimals,
+            tokenAccount: mintAddress, // Optional: Update with associated token account if needed
+          };
+        } catch (error) {
+          console.error('Error fetching token details:', error);
+          throw error;
+        }
+      }
+      
+      /**
+       * Find the metadata address for a given mint
+       */
+      private async findMetadataAddress(mint: PublicKey): Promise<PublicKey> {
+        const METADATA_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
+
+        const [metadataAddress] = await PublicKey.findProgramAddress(
+          [Buffer.from('metadata'), METADATA_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+          METADATA_PROGRAM_ID
+        );
+        return metadataAddress;
+      }
+      
+      /**
+       * Decode metadata from account data (Metaplex Metadata Standard)
+       */
+      private decodeMetadata(data: Buffer): { name: string; symbol: string } {
+        const metadata = data.toString('utf8');
+        const name = metadata.match(/name:\s*([^\s]*)/i)?.[1] || 'Unknown';
+        const symbol = metadata.match(/symbol:\s*([^\s]*)/i)?.[1] || 'Unknown';
+      
+        return {
+          name: name.trim(),
+          symbol: symbol.trim(),
+        };
+      }
+      
+
     public async executeTrade(
       userWallet: Keypair,
       poolId: string,

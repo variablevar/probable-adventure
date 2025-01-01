@@ -6,7 +6,6 @@ datasource db {
 generator client {
   provider = "prisma-client-js"
 }
-
 model Wallet {
   telegramId  String   @id @unique
   publicKey   String
@@ -16,10 +15,14 @@ model Wallet {
   lastName    String?
   username    String?
   type        String?
+
+  targetWallets TargetWallet[] // Added relationship to TargetWallet
 }
 
 model TargetWallet {
-  id        Int      @id @default(autoincrement())
-  address   String   @unique
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  address     String   @unique
+  createdAt   DateTime @default(now())
+  telegramId  String   // Foreign key to Wallet model
+  wallet      Wallet   @relation(fields: [telegramId], references: [telegramId]) // Foreign key relation to Wallet
 }

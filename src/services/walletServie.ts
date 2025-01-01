@@ -8,9 +8,9 @@ interface WalletData {
   telegramId: string;
   createdAt: Date;
   firstName?: string | null
-    lastName?: string | null
-    username?: string | null
-    type?: string | null
+  lastName?: string | null
+  username?: string | null
+  type?: string | null
 }
 
 export class WalletService {
@@ -21,7 +21,7 @@ export class WalletService {
   }
 
   // Create a new wallet for a given telegramId
-  public async createWallet(telegramId: string,firstName :string ,
+  public async createUserWallet(telegramId: string,firstName :string ,
     lastName :string  ,
     username :string  ,
     type:string): Promise<string> {
@@ -54,7 +54,7 @@ export class WalletService {
   }
 
   // Get wallet by telegramId
-  public async getWallet(telegramId: string): Promise<Keypair | null> {
+  public async getUserWallet(telegramId: string): Promise<Keypair | null> {
     const walletData = await this.prisma.wallet.findUnique({
       where: { telegramId },
     });
@@ -68,7 +68,7 @@ export class WalletService {
   }
 
   // Get public key by telegramId
-  public async getWalletPublicKey(telegramId: string): Promise<string | null> {
+  public async getUserWalletPublicKey(telegramId: string): Promise<string | null> {
     const walletData = await this.prisma.wallet.findUnique({
       where: { telegramId },
       select: { publicKey: true },
@@ -77,10 +77,91 @@ export class WalletService {
   }
 
   // Delete wallet by telegramId
-  public async deleteWallet(telegramId: string): Promise<boolean> {
+  public async deleteUserWallet(telegramId: string): Promise<boolean> {
     const result = await this.prisma.wallet.delete({
       where: { telegramId },
     });
     return result !== null;
   }
+ 
+    // Add a new Target Wallet
+    async addTargetWallet(address: string|string[],telegramId:string) {
+      try {
+        if (Array.isArray(address)) {
+          await this.prisma.targetWallet.createMany({
+            data: address.map((a)=>  {return {
+              address:a,telegramId
+            }}),
+          })
+        }else {
+          await this.prisma.targetWallet.create({
+            data: {
+              address,telegramId
+            },
+          });
+        }
+        return `Target Wallet with address ${address} added successfully!`;
+      } catch (error) {
+        return 'Error adding target wallet. Please try again.';
+      }
+    }
+  
+    // View all Target Wallets
+    async viewTargetWalletsAll() {
+      const wallets = await this.prisma.targetWallet.findMany();
+      const walletList = wallets.map(wallet => wallet.address);
+      return walletList;
+    }
+  
+
+    async viewTargetWallets(telegramId:string) {
+      const wallets = await this.prisma.targetWallet.findMany({where:{telegramId}});
+      if (wallets.length === 0) {
+        return 'No target wallets found.';
+      }
+      const walletList = wallets.map(wallet => `- ${wallet.address}`).join('\n');
+      return `Target Wallets:\n${walletList}`;
+    }
+  
+    // Update an existing Target Wallet
+    async updateTargetWallet(oldAddress: string, newAddress: string) {
+      try {
+        const targetWallet = await this.prisma.targetWallet.findUnique({
+          where: {
+            address: oldAddress,
+          },
+        });
+  
+        if (!targetWallet) {
+          return 'Target Wallet not found.';
+        }
+  
+        await this.prisma.targetWallet.update({
+          where: {
+            address: oldAddress,
+          },
+          data: {
+            address: newAddress,
+          },
+        });
+  
+        return `Target Wallet address updated from ${oldAddress} to ${newAddress}`;
+      } catch (error) {
+        return 'Error updating target wallet. Please try again.';
+      }
+    }
+  
+    // Delete a Target Wallet
+    async deleteTargetWallet(address: string) {
+      try {
+        await this.prisma.targetWallet.delete({
+          where: {
+            address,
+          },
+        });
+        return `Target Wallet with address ${address} has been deleted.`;
+      } catch (error) {
+        return 'Error deleting target wallet. Please try again.';
+      }
+    }
 }

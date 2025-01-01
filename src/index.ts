@@ -2,6 +2,7 @@ import { config, validateConfig } from './config/config';
 import { SolanaService } from './services/solanaService';
 import { TelegrafBotService } from './services/telegrafBot';
 import { TradeService } from './services/tradeService';
+import { WalletService } from './services/walletServie';
 
 async function main() {
   try {
@@ -9,9 +10,10 @@ async function main() {
     validateConfig(config);
 
     // Initialize services
+    const walletService = new WalletService();
     const tradeService = new TradeService(config);
     const solanaService = new SolanaService(config);
-    const telegramBot = new TelegrafBotService(config, solanaService,tradeService);
+    const telegramBot = new TelegrafBotService(config, solanaService,tradeService,walletService);
 
     console.log('Starting Solana Copy Trading Bot...');
 

@@ -21,19 +21,19 @@ import { WalletService } from './walletServie';
         lastName :string  ,
         username :string  ,
         type:string): Promise<string> {
-      return this.walletService.createWallet(telegramId,firstName  ,
+      return this.walletService.createUserWallet(telegramId,firstName  ,
         lastName   ,
         username   ,
         type);
     }
   
     public async getUserWallet(telegramId: string): Promise<Keypair | null> {
-      return this.walletService.getWallet(telegramId);
+      return this.walletService.getUserWallet(telegramId);
     }
   
     public async monitorTransactions(
         targetWallets: PublicKey[], // Array of target wallets
-        callback: (transaction: VersionedTransactionResponse) => Promise<void>
+        callback: (transaction: VersionedTransactionResponse,targetedWallet:string) => Promise<void>
       ) {
         try {
           console.log('Starting transaction monitoring for multiple wallets...');
@@ -58,10 +58,10 @@ import { WalletService } from './walletServie';
                   
                     
                     if (rawTransaction) {
-                      console.log(`Raw transaction found for wallet ${wallet.toBase58()}:`, rawTransaction);
+                      console.log(`Raw transaction found for wallet ${wallet.toBase58()}:`);
                   
                       // Optionally, parse the raw transaction here if needed
-                      await callback(rawTransaction);
+                      await callback(rawTransaction,wallet.toBase58());
                     } else {
                       console.log(`No raw transaction found for signature: ${signature}`);
                     }
@@ -89,7 +89,7 @@ import { WalletService } from './walletServie';
   
     public async getWalletBalance(telegramId: string): Promise<number | null> {
       try {
-        const wallet = await this.walletService.getWallet(telegramId);
+        const wallet = await this.walletService.getUserWallet(telegramId);
         if (!wallet) {
           return null;
         }
@@ -103,7 +103,7 @@ import { WalletService } from './walletServie';
   
     public async executeTrade(telegramId: string, tradeInstructions: any): Promise<boolean> {
       try {
-        const wallet = await this.walletService.getWallet(telegramId);
+        const wallet = await this.walletService.getUserWallet(telegramId);
         if (!wallet) {
           throw new Error('Wallet not found for user');
         }

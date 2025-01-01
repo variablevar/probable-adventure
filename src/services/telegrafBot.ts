@@ -5,6 +5,7 @@ import { TokenInfo, TradeInfo, TradeService } from './tradeService';
 import { message } from 'telegraf/filters';
 import { PrismaClient } from '@prisma/client';
 import { PublicKey } from '@solana/web3.js';
+import { WalletService } from './walletServie';
 
 const prisma = new PrismaClient();
 
@@ -17,11 +18,13 @@ interface BotContext extends Context {
 export class TelegrafBotService {
   private bot: Telegraf<BotContext>;
   private subscribers: Set<string>;
+  private awaitingAddresses: Map<string, Function> = new Map();
 
   constructor(
     private config: Config,
     private solanaService: SolanaService,
-    private tradeService:TradeService
+    private tradeService:TradeService,
+    private targetWalletService:WalletService
   ) {
     this.bot = new Telegraf<BotContext>(config.TELEGRAM_BOT_TOKEN);
     this.subscribers = new Set();
@@ -49,7 +52,7 @@ export class TelegrafBotService {
         [Markup.button.callback('✅ Subscribe', 'subscribe')],
         [Markup.button.callback('❌ Unsubscribe', 'unsubscribe')],
         [Markup.button.callback('ℹ️ Status', 'status')],
-        [Markup.button.callback('ℹ️ Add Target Wallet', 'add_target_wallets')],
+        [Markup.button.callback('ℹ️ Manage Wallet', 'manage_target_wallets')],
 
       ]);
 
@@ -77,7 +80,7 @@ Need more help? Contact support at @yoursupport
     });
 
     // Direct commands
-    this.bot.command('add_target_wallets', this.handleAddTargetWalletCommand.bind(this));
+    this.bot.command('manage_target_wallets', this.handleManageTargetWalletCommand.bind(this));
     this.bot.command('wallet', this.handleWalletCommand.bind(this));
     this.bot.command('balance', this.handleBalanceCommand.bind(this));
     this.bot.command('subscribe', this.handleSubscribeCommand.bind(this));
@@ -85,11 +88,26 @@ Need more help? Contact support at @yoursupport
     this.bot.command('status', this.handleStatusCommand.bind(this));
   }
 
-  private setupCallbacks() {
+  private async setupCallbacks() {
+    const wallets = await this.targetWalletService.viewTargetWalletsAll();
+    this.setupWalletListeners(wallets);
+    // Listen for messages based on user flow stored in the awaitingAddresses map
+    this.bot.on('message', async (messageCtx) => {
+      const chatId = messageCtx.from?.id.toString();
+      if (chatId && this.awaitingAddresses.has(chatId)) {
+        const callback = this.awaitingAddresses.get(chatId);
+        if (callback) {
+          await callback(messageCtx);
+        }else{
+          await messageCtx.reply(`Something went wrong , callback not found`);
+        }
+      }
+    });
+
     // Callback queries for inline buttons
-    this.bot.action('add_target_wallets', async (ctx) => {
+    this.bot.action('manage_target_wallets', async (ctx) => {
       await ctx.answerCbQuery();
-      await this.handleAddTargetWalletCommand(ctx);
+      await this.handleManageTargetWalletCommand(ctx);
     });
 
     this.bot.action('create_wallet', async (ctx) => {
@@ -118,44 +136,106 @@ Need more help? Contact support at @yoursupport
     });
   }
 
-  private async handleAddTargetWalletCommand(ctx: BotContext){
-    const msg = await ctx.reply(
-      'Please send a list of wallet addresses (comma-separated or line-separated, max 25 wallets).'
+  private async handleManageTargetWalletCommand(ctx: BotContext){
+
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('💰 Check Balance', 'check_balance')],
+      [Markup.button.callback('✅ Subscribe', 'subscribe')],
+      [Markup.button.callback('❌ Unsubscribe', 'unsubscribe')],
+      [Markup.button.callback('ℹ️ Status', 'status')],
+      [Markup.button.callback('ℹ️ Add Target Wallet', 'add_target_wallet')],
+      [Markup.button.callback('🔎 View Target Wallets', 'view_target_wallets')],
+      [Markup.button.callback('✏️ Update Target Wallet', 'update_target_wallet')],
+      [Markup.button.callback('❌ Delete Target Wallet', 'delete_target_wallet')],
+    ]);
+    
+    await ctx.reply(
+      `Welcome to Solana Copy Trading Bot! 🚀\n\nSelect an action:`,
+      keyboard
     );
 
-    // Wait for the user's input
-    this.bot.on('text', async (ctx) => {
-      const walletInput = ctx.message.text.trim();
-      const wallets = this.parseWalletInput(walletInput);
-
-      // Check if we have more than 25 wallets
-      if (wallets.length > 25) {
-        await ctx.reply('You can add a maximum of 25 wallets.');
-        return;
+        // Add Target Wallet
+    this.bot.action('add_target_wallet', async (ctx) => {
+      const chatId = ctx.from?.id.toString();
+      if (chatId) {
+        this.awaitingAddresses.set(chatId, this.handleAddTargetWallet.bind(this));
+        await ctx.reply('Please provide the Target Wallet address:');
       }
-
-      // Add wallets to the database
-      const uniqueWallets = wallets
-      // const uniqueWallets = await this.addTargetWallets(wallets);
-
-      if (uniqueWallets.length === 0) {
-        await ctx.reply('No unique wallets were added.');
-      } else {
-        await ctx.reply(
-          `Successfully added the following unique wallet(s):\n${uniqueWallets.join('\n')}`
-        );
-      }
-
-      await this.setupWalletListeners(uniqueWallets);
     });
+
+    // View Target Wallets
+    this.bot.action('view_target_wallets', async (ctx) => {
+      const chatId = ctx.from?.id.toString();
+      if (chatId) {
+        const response = await this.targetWalletService.viewTargetWallets(chatId);
+        await ctx.reply(response);
+      }
+    });
+
+    // Update Target Wallet
+    this.bot.action('update_target_wallet', async (ctx) => {
+      const chatId = ctx.from?.id.toString();
+      if (chatId) {
+        this.awaitingAddresses.set(chatId, this.handleUpdateTargetWallet.bind(this));
+        await ctx.reply('Please provide the Target Wallet address you want to update:');
+      }
+    });
+
+    // Delete Target Wallet
+    this.bot.action('delete_target_wallet', async (ctx) => {
+      const chatId = ctx.from?.id.toString();
+      if (chatId) {
+        this.awaitingAddresses.set(chatId, this.handleDeleteTargetWallet.bind(this));
+        await ctx.reply('Please provide the Target Wallet address you want to delete:');
+      }
+    });
+  }
+
+  // Method to handle adding a target wallet
+  private async handleAddTargetWallet(messageCtx: any) {
+    const chatId = messageCtx.chat?.id.toString();
+    const address = this.parseWalletInput(messageCtx.message.text);
+    if (chatId && address) {
+      const response = await this.targetWalletService.addTargetWallet(address, chatId);
+      await messageCtx.reply(response);
+      this.awaitingAddresses.delete(chatId); // Clear the state
+    }
+  }
+
+  // Method to handle updating a target wallet
+  private async handleUpdateTargetWallet(messageCtx: any) {
+    const chatId = messageCtx.chat?.id.toString();
+    const oldAddress = messageCtx.message.text;
+    if (chatId && oldAddress) {
+      await messageCtx.reply('Please provide the new address:');
+      this.awaitingAddresses.set(chatId, async (updateCtx: any) => {
+        const newAddress = updateCtx.message.text;
+        const response = await this.targetWalletService.updateTargetWallet(oldAddress, newAddress);
+        await updateCtx.reply(response);
+        this.awaitingAddresses.delete(chatId); // Clear the state
+      });
+    }
+  }
+
+  // Method to handle deleting a target wallet
+  private async handleDeleteTargetWallet(messageCtx: any) {
+    const chatId = messageCtx.chat?.id.toString();
+    const address = messageCtx.message.text;
+    if (chatId && address) {
+      const response = await this.targetWalletService.deleteTargetWallet(address);
+      await messageCtx.reply(response);
+      this.awaitingAddresses.delete(chatId); // Clear the state
+    }
+  }
+
+   // Parse input to get a list of wallet addresses
+   private parseWalletInput(input: string): string[] {
+    return input.split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean);
   }
 
   private async handleWalletCommand(ctx: BotContext) {
     try {
-      const {firstName  ,
-      lastName   ,
-      username   ,
-      type       } = ctx.chat as any;
+      const {firstName,lastName ,username ,type} = ctx.chat as any;
       const chatId = ctx.chat?.id.toString();
       if (!chatId) return;
 
@@ -175,10 +255,7 @@ Need more help? Contact support at @yoursupport
           }
         );
       } else {
-        const newPublicKey = await this.solanaService.createUserWallet(chatId,firstName  ,
-          lastName   ,
-          username   ,
-          type);
+        const newPublicKey = await this.solanaService.createUserWallet(chatId,firstName,lastName ,username ,type);
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('💰 Check Balance', 'check_balance')],
           [Markup.button.callback('🔄 Back to Menu', 'start')]
@@ -323,6 +400,7 @@ Need more help? Contact support at @yoursupport
 
   public async notifySubscribers(tradeInfo: TradeInfo) {
     const message = this.formatTradeMessage(tradeInfo);
+    console.log(message);
     
     for (const chatId of this.subscribers) {
       try {
@@ -368,49 +446,15 @@ Need more help? Contact support at @yoursupport
       `;
   }
 
-   // Parse input to get a list of wallet addresses
-   private parseWalletInput(input: string): string[] {
-    return input.split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean);
-  }
-
-  // Add the target wallets to the database
-  private async addTargetWallets(wallets: string[]): Promise<string[]> {
-    const uniqueWallets: string[] = [];
-
-    for (const wallet of wallets) {
-      try {
-        const existingWallet = await prisma.targetWallet.findUnique({
-          where: { address: wallet },
-        });
-
-        if (!existingWallet) {
-          await prisma.targetWallet.create({
-            data: { address: wallet },
-          });
-          uniqueWallets.push(wallet);
-        }
-      } catch (error) {
-        console.error('Error adding wallet:', error);
-      }
-    }
-
-    return uniqueWallets;
-  }
-
   // Setup listeners for the newly added target wallets
   private async setupWalletListeners(wallets: string[]) {
-    // Here you can implement logic to start listeners for these wallets
-    // Assuming solanaService has functionality to listen for transactions on a wallet
-    // for (const wallet of wallets) {
-    //   console.log(`Setting up listener for wallet: ${wallet}`);
-    //   // Call your solanaService to start the listener for this wallet
-    // }
-    await this.solanaService.monitorTransactions(wallets.map(w=> new PublicKey(w)),async (transaction) => {
+    await this.solanaService.monitorTransactions(wallets.map(w=> new PublicKey(w)),async (transaction,targetedWallet) => {
       const tradeInfo = await this.tradeService.parseTradeInfo(transaction);
+      console.log(tradeInfo);
       
       if (tradeInfo) {
         // Notify subscribers about the trade
-        await this.notifySubscribers(tradeInfo);
+        await this.notifySubscribers({...tradeInfo,targetedWallet});
 
         // Trade execution will be handled per subscriber
         // in the TelegrafBotService
