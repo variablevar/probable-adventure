@@ -3,6 +3,10 @@ import { SolanaService } from './services/solanaService';
 import { TelegrafBotService } from './services/telegrafBot';
 import { TradeService } from './services/tradeService';
 import { WalletService } from './services/walletServie';
+import express from 'express';
+
+const app = express();
+const port = process.env.PORT || 3000;
 
 async function main() {
   try {
@@ -24,6 +28,15 @@ async function main() {
     // await solanaService.monitorTransactions();
 
     console.log('Bot is running and monitoring transactions...');
+
+    app.post('/', (req, res) => {
+      res.send('OK');
+    });
+    
+    app.listen(port, () => {
+      console.log(`Server listening on port ${port}`);
+    });
+    
   } catch (error) {
     console.error('Error starting the bot:', error);
     process.exit(1);
