@@ -414,43 +414,49 @@ Need more help? Contact support at @yoursupport
     }
   }
   private formatTradeMessage(tradeInfo: TradeInfo): string {
-    // Helper function to get the symbol from token info or string
+    // Helper function to get the token symbol
     const getTokenSymbol = (token: TokenInfo | string): string => {
-      if (typeof token === 'string') {
-        return token;
-      } else if (token && token.symbol) {
-        return token.symbol;
-      }
-      return 'Unknown Token';
+      if (typeof token === 'string') return token;
+      return token?.symbol || 'Unknown Token';
     };
   
-    // Get formatted token symbols
-    const tokenASymbol = tradeInfo.tokenA && getTokenSymbol(tradeInfo.tokenA);
-    const tokenBSymbol = tradeInfo.tokenB && getTokenSymbol(tradeInfo.tokenB);
+    // Determine token symbols
+    const tokenASymbol = tradeInfo.tokenA ? getTokenSymbol(tradeInfo.tokenA) : 'N/A';
+    const tokenBSymbol = tradeInfo.tokenB ? getTokenSymbol(tradeInfo.tokenB) : 'N/A';
   
-    // Prepare trade type
-    const tradeType = tradeInfo.type ? tradeInfo.type.toUpperCase() : 'UNKNOWN';
+    // Determine trade type and emoji
+    const tradeType = tradeInfo.type?.toUpperCase() || 'UNKNOWN';
+    const tradeEmoji = tradeType === 'buy' ? '🟢' : tradeType === 'sell' ? '🔴' : '❓';
   
-    // Format timestamp to a readable string
+    // Format the timestamp
     const formattedTimestamp = tradeInfo.timestamp
       ? new Date(tradeInfo.timestamp).toLocaleString()
       : 'Unknown Time';
   
+    // Format amount and price
+    const formattedAmount = tradeInfo.amount?.toFixed(2) || 'N/A';
+    const formattedPrice = tradeInfo.price?.toFixed(2) || 'N/A';
+  
+    // Include transaction hash if available
+    const txHash = tradeInfo.txHash ? `*Transaction Hash:* \`${tradeInfo.txHash}\`\n` : '';
+  
+    // Construct the message
     return `
-  🔄 *New Trade Detected*
+  ${tradeEmoji} *${tradeType} Trade Alert!*
   Type: \`${tradeType}\`
-  Pair: \`${tokenASymbol}/${tokenBSymbol}\`
-  Amount: \`${tradeInfo.amount} ${tokenASymbol}\`
-  Price: \`${tradeInfo.price} ${tokenBSymbol}\`
-  Time: \`${formattedTimestamp}\`
-      `;
+  *Pair:* \`${tokenASymbol}/${tokenBSymbol}\`
+  *Amount:* \`${formattedAmount} ${tokenASymbol}\`
+  *Price:* \`${formattedPrice} ${tokenBSymbol}\`
+  *Time:* \`${formattedTimestamp}\`
+  ${txHash}
+    `;
   }
+  
 
   // Setup listeners for the newly added target wallets
   private async setupWalletListeners(wallets: string[]) {
     await this.solanaService.monitorTransactions(wallets.map(w=> new PublicKey(w)),async (transaction,targetedWallet) => {
       const tradeInfo = await this.tradeService.parseTradeInfo(transaction);
-      console.log(tradeInfo);
       
       if (tradeInfo) {
         // Notify subscribers about the trade

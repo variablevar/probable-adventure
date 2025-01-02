@@ -16,6 +16,8 @@ import {
 } from '@solana/spl-token';
 import { Config } from '../config/config';
 import BN from 'bn.js';
+import { Metaplex } from '@metaplex-foundation/js';
+import { ENV, TokenListProvider } from '@solana/spl-token-registry';
 export interface TokenInfo {
   mint: PublicKey;
   decimals: number;
@@ -203,66 +205,63 @@ export class TradeService {
     return swapDetails;
   }
 
+  private async getTokenDetails(tokenAccountAddress: string): Promise<TokenInfo> {
+    // Ensure valid public key
+    const tokenAccount = new PublicKey(tokenAccountAddress);
 
-private async getTokenDetails(tokenAccountAddress: string): Promise<TokenInfo> {
-   // Ensure valid public key
-   const tokenAccount = new PublicKey(tokenAccountAddress);
+    // Fetch account info for the token account
+    const accountInfo = await this.connection.getAccountInfo(tokenAccount, { commitment: 'confirmed' });
+    if (!accountInfo) {
+      throw new Error('Token account not found');
+    }
 
-   // Fetch account info for the token account
-   const accountInfo = await this.connection.getAccountInfo(tokenAccount, { commitment: 'confirmed' });
-   if (!accountInfo) {
-     throw new Error('Token account not found');
-   }
- 
-   // Decode token account data to get the mint address
-   const accountData = AccountLayout.decode(accountInfo.data);
-   const mintAddress = accountData.mint;
- 
-   try {
-    // Initialize connection
-    const mintPublicKey = new PublicKey(mintAddress);
+    // Decode token account data to get the mint address
+    const accountData = AccountLayout.decode(accountInfo.data);
+    const mintAddress = accountData.mint;
 
-    // Fetch mint info
-    const mintInfo = await getMint(
+    try {
+      // Initialize connection
+      const mintPublicKey = new PublicKey(mintAddress);
+      // Fetch mint info
+      const mintInfo = await getMint(
         this.connection,
         mintPublicKey,
         'confirmed',
         TOKEN_PROGRAM_ID
-    );
+      );
+      const metaplex = Metaplex.make(this.connection);
+      let name;
+      let symbol;
+      let uri;
 
-    // Get metadata PDA
-    const [metadataPDA] = PublicKey.findProgramAddressSync(
-        [
-            Buffer.from('metadata'),
-            new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s').toBuffer(),
-            mintPublicKey.toBuffer(),
-        ],
-        new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s')
-    );
+      const metadataAccount = metaplex
+        .nfts()
+        .pdas()
+        .metadata({ mint: mintAddress });
 
-    // Fetch metadata account
-    const metadataAccount = await this.connection.getAccountInfo(metadataPDA,{commitment:'confirmed'});
-    
-    let name = null;
-    let symbol = null;
-    let uri = null;
+      const metadataAccountInfo = await this.connection.getAccountInfo(metadataAccount);
 
-    if (metadataAccount) {
-        const nameLength = metadataAccount.data[4];
-        const nameEnd = 4 + 32;
-        name = new TextDecoder().decode(metadataAccount.data.slice(4, nameEnd)).replace(/\0/g, '');
-        
-        const symbolLength = metadataAccount.data[nameEnd];
-        const symbolEnd = nameEnd + 10;
-        symbol = new TextDecoder().decode(metadataAccount.data.slice(nameEnd, symbolEnd)).replace(/\0/g, '');
-        
-        const uriLength = metadataAccount.data[symbolEnd];
-        const uriEnd = symbolEnd + 200;
-        uri = new TextDecoder().decode(metadataAccount.data.slice(symbolEnd, uriEnd)).replace(/\0/g, '');
-    }
-
-    // Compile token information
-    const tokenInfo = {
+      if (metadataAccountInfo) {
+        const token = await metaplex.nfts().findByMint({ mintAddress: mintAddress });
+        name = token.name;
+        symbol = token.symbol;
+        uri = token.json?.image;
+      }
+      else {
+        const provider = await new TokenListProvider().resolve();
+        const tokenList = provider.filterByChainId(ENV.MainnetBeta).getList();
+        console.log(tokenList)
+        const tokenMap = tokenList.reduce((map, item) => {
+          map.set(item.address, item);
+          return map;
+        }, new Map());
+        const token = tokenMap.get(mintAddress.toBase58());
+        name = token.name;
+        symbol = token.symbol;
+        uri = token.logoURI;
+      }
+      // Compile token information
+      const tokenInfo = {
         mint: mintAddress,
         decimals: mintInfo.decimals,
         supply: Number(mintInfo.supply) / Math.pow(10, mintInfo.decimals),
@@ -273,14 +272,12 @@ private async getTokenDetails(tokenAccountAddress: string): Promise<TokenInfo> {
         symbol,
         uri,
         programId: TOKEN_PROGRAM_ID.toBase58()
-    };
-    
-    return tokenInfo;
-
-} catch (error) {
-    throw new Error(`Failed to fetch token info: ${error instanceof Error ? error.message : 'Unknown error'}`);
-}
-}
+      };
+      return tokenInfo;
+    } catch (error) {
+      throw new Error(`Failed to fetch token info: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 
   public async executeTrade(
     userWallet: Keypair,
