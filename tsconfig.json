@@ -8,7 +8,7 @@
       "skipLibCheck": true,
       "esModuleInterop": true,
       "allowSyntheticDefaultImports": true,
-      "module": "ESNext", // or "CommonJS" based on your project setup
+      "module": "CommonJS", // or "CommonJS" based on your project setup
       "forceConsistentCasingInFileNames": true,
       "moduleResolution": "node",
       "resolveJsonModule": true

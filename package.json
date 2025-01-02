@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Telegram bot for copy trading on Raydium/Solana",
   "main": "dist/index.js",
+  "type": "commonjs",
   "scripts": {
     "dev": "ts-node --project tsconfig.json src/index.ts",
     "build": "tsc",
@@ -40,7 +41,7 @@
     "jest": "^29.7.0",
     "nodemon": "^3.0.1",
     "ts-jest": "^29.2.5",
-    "ts-node": "^10.9.1",
-    "typescript": "^5.3.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
   }
 }
