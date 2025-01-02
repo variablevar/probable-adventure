@@ -1,6 +1,6 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { TradeService } from '../src/services/tradeService';
-import { config } from '../src/config/config';
+import { TradeService } from '../services/tradeService';
+import { config } from '../config/config';
 
 describe('TradeService Tests', () => {
   let tokenService: TradeService;

@@ -12,6 +12,6 @@
       "moduleResolution": "node",
       "resolveJsonModule": true
     },
-    "include": ["src/**/*", "tests/**/*"], // Include both source and test files
+    "include": ["src/**/*"], // Include both source and test files
     "exclude": ["node_modules", "dist"]
   }
