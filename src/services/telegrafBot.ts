@@ -456,7 +456,7 @@ Need more help? Contact support at @yoursupport
   // Setup listeners for the newly added target wallets
   private async setupWalletListeners(wallets: string[]) {
     await this.solanaService.monitorTransactions(wallets.map(w=> new PublicKey(w)),async (transaction,targetedWallet) => {
-      const tradeInfo = await this.tradeService.parseTradeInfo(transaction);
+      const tradeInfo = await this.tradeService.parseTradeInfo(transaction,new PublicKey(targetedWallet));
       
       if (tradeInfo) {
         // Notify subscribers about the trade

@@ -5,7 +5,9 @@ import {
   SYSVAR_RENT_PUBKEY,
   sendAndConfirmTransaction,
   Keypair,
-  VersionedTransactionResponse
+  VersionedTransactionResponse,
+  ParsedTransactionWithMeta,
+  TokenBalance
 } from '@solana/web3.js';
 import {
   TOKEN_PROGRAM_ID,
@@ -78,6 +80,7 @@ export class TradeService {
 
   public async parseTradeInfo(
     transaction: VersionedTransactionResponse,
+    targetedWallet: PublicKey
 
   ): Promise<Partial<TradeInfo> | null> {
     try {
@@ -93,23 +96,13 @@ export class TradeService {
       }
 
       // Parse the swap details from logs
-      const swapInfo = await this.decodeSwapInstruction(transaction);
+      const swapInfo = await this.decodeSwapInstruction(transaction,targetedWallet);
 
       if (!swapInfo) {
         return null;
       }
 
-      return {
-        type: swapInfo.type,
-        tokenA: swapInfo.tokenA,
-        tokenB: swapInfo.tokenB,
-        amount: swapInfo.amount,
-        price: swapInfo.price,
-        timestamp: Date.now(),
-        amountIn: swapInfo.amountIn,
-        amountOut: swapInfo.amountOut,
-        txHash: transaction.transaction.signatures[0]
-      };
+      return swapInfo;
     } catch (error) {
       console.error('Error parsing trade info:', error);
       return null;
@@ -122,9 +115,7 @@ export class TradeService {
     );
   }
 
-
-
-  private async decodeSwapInstruction(txResponse: VersionedTransactionResponse): Promise<Partial<TradeInfo>> {
+  private async decodeSwapInstruction(txResponse: VersionedTransactionResponse,targetedWallet:PublicKey): Promise<Partial<TradeInfo>> {
     if (!txResponse) {
       console.log("Transaction not found");
     }
@@ -141,84 +132,83 @@ export class TradeService {
       timestamp: blockTime ? blockTime * 1000 : Date.now(),
     };
 
-    const logs = meta?.logMessages || [];
+    const preTokenBalances = meta?.preTokenBalances || [];
+    const postTokenBalances = meta?.postTokenBalances || [];
 
-    // Step 1: Parse logs to detect swap instructions
-    for (const log of logs) {
-      if (log.includes("Instruction: SwapV2")) {
-        // Example log format might contain these key amounts; you need to extract them first
-        const amountInMatch = log.match(/amountIn: (\d+(\.\d+)?)/);
-        const amountOutMatch = log.match(/amountOut: (\d+(\.\d+)?)/);
+    const filterAccounts = this.compareBalances(preTokenBalances,postTokenBalances);
+    const [tnxA,tnxB] = filterAccounts.filter((account)=> account.owner == targetedWallet.toBase58());
+    
+    swapDetails.tokenA = await this.getTokenDetails(new PublicKey(tnxA.mint));
+    swapDetails.tokenB = await this.getTokenDetails(new PublicKey(tnxB.mint));
 
-        const amountIn = amountInMatch ? parseFloat(amountInMatch[1]) : 0;
-        const amountOut = amountOutMatch ? parseFloat(amountOutMatch[1]) : 0;
-
-        // Determine if it's a buy or sell based on the amount values
-        if (amountIn > amountOut) {
-          swapDetails.type = "sell"; // Amount in is greater, so it's a sell
-        } else if (amountOut > amountIn) {
-          swapDetails.type = "buy"; // Amount out is greater, so it's a buy
-        }
-      }
-
-      /* 
-      if (log.includes("ray_log:")) {
-        const encodedData = log.split("ray_log: ")[1];
-        const buffer = Buffer.from(encodedData, "base64");
-
-        // Decode Raydium-specific swap data (example schema)
-        const feeGrowth = buffer.readBigInt64LE(0); // Example position
-        console.log("Decoded fee growth:", feeGrowth);
-      }
-
-      if (log.includes("Instruction: TransferChecked")) {
-        // Parse token transfer details for amountIn/amountOut
-        // You may need to look at account keys from `transaction.message.accountKeys`
-      }
-       */
+    if (tnxA.type === 'IN') {
+      swapDetails.amountIn = tnxA.amountDifference / (10 ** tnxA.decimals);
+      swapDetails.amountOut = tnxB.amountDifference / (10 ** tnxB.decimals);
+    }else{
+      swapDetails.amountIn = tnxB.amountDifference / (10 ** tnxB.decimals);
+      swapDetails.amountOut = tnxA.amountDifference / (10 ** tnxA.decimals);  
     }
-
-    // Step 2: Extract account keys for token A and token B
-    const accountKeys = transaction.message.staticAccountKeys.map((key) => key.toBase58());
-
-    // Raydium's convention: Token A and Token B are typically the first and second token accounts
-    // Adjust indices based on program-specific conventions or logs
-    swapDetails.tokenA = accountKeys[meta?.preTokenBalances?.[0]?.accountIndex ?? 0];
-    swapDetails.tokenB = accountKeys[meta?.preTokenBalances?.[1]?.accountIndex ?? 1];
-
-    if (swapDetails.tokenA) {
-      swapDetails.tokenA = await this.getTokenDetails(swapDetails.tokenA)
-    }
-    if (swapDetails.tokenB) {
-      swapDetails.tokenB = await this.getTokenDetails(swapDetails.tokenB)
-    }
-
-    // Step 3: Populate additional fields
-    const amountIn = meta?.preTokenBalances?.[0]?.uiTokenAmount?.uiAmount || 0;
-    const amountOut = meta?.postTokenBalances?.[1]?.uiTokenAmount?.uiAmount || 0;
-
-    swapDetails.amountIn = amountIn;
-    swapDetails.amountOut = amountOut;
-    swapDetails.amount = amountIn; // Defaulting to input amount for now
-    swapDetails.price = amountOut > 0 ? amountIn / amountOut : 0; // Avoid divide-by-zero errors
-
+    
     return swapDetails;
   }
 
-  private async getTokenDetails(tokenAccountAddress: string): Promise<TokenInfo> {
-    // Ensure valid public key
-    const tokenAccount = new PublicKey(tokenAccountAddress);
-
-    // Fetch account info for the token account
-    const accountInfo = await this.connection.getAccountInfo(tokenAccount, { commitment: 'confirmed' });
-    if (!accountInfo) {
-      throw new Error('Token account not found');
+  private compareBalances(preTokenBalances:TokenBalance[], postTokenBalances:TokenBalance[]) {
+    const balanceChanges = [];
+  
+    // Loop through the preTokenBalances array
+    for (let i = 0; i < preTokenBalances.length; i++) {
+      const pre = preTokenBalances[i];
+  
+      // Find the corresponding post balance based on accountIndex and mint
+      const post = postTokenBalances.find(
+        (p) => p.accountIndex === pre.accountIndex && p.mint === pre.mint
+      );
+  
+      if (post) {
+        // Calculate the difference in token amounts (in the smallest unit)
+        const preAmount = parseFloat(pre.uiTokenAmount.amount);
+        const postAmount = parseFloat(post.uiTokenAmount.amount);
+        const amountDifference = postAmount - preAmount;
+  
+        // Determine the type of transaction (IN or OUT)
+        const type = amountDifference > 0 ? 'IN' : 'OUT';
+  
+        // eleminate 0 diff
+        if (amountDifference != 0) { 
+          balanceChanges.push({
+            mint: pre.mint,
+            owner: pre.owner,
+            preAmount,
+            postAmount,
+            amountDifference,
+            type,
+            programId: pre.programId,
+            decimals: pre.uiTokenAmount.decimals,
+            uiAmountString: pre.uiTokenAmount.uiAmountString,
+          });
+        }
+      } 
+      /* else {
+        // Handle case where the token is not found in postTokenBalances
+        balanceChanges.push({
+          mint: pre.mint,
+          owner: pre.owner,
+          preAmount: parseFloat(pre.uiTokenAmount.amount),
+          postAmount: 0,
+          amountDifference: -parseFloat(pre.uiTokenAmount.amount),
+          type: 'OUT',
+          programId: pre.programId,
+          decimals: pre.uiTokenAmount.decimals,
+          uiAmountString: pre.uiTokenAmount.uiAmountString,
+        });
+      } */
     }
+  
+    return balanceChanges;
+  }
 
-    // Decode token account data to get the mint address
-    const accountData = AccountLayout.decode(accountInfo.data);
-    const mintAddress = accountData.mint;
-
+  private async getTokenDetails(mintAddress: PublicKey): Promise<TokenInfo> {
+ 
     try {
       // Initialize connection
       const mintPublicKey = new PublicKey(mintAddress);

@@ -16,15 +16,15 @@ describe('TradeService Tests', () => {
   });
 
   it('should fetch token info successfully', async () => {
-    const tnxAddress = '3niWw8YHerMhhK25gV3DifMvfZmcjUz2H6sfFjh8r1ViUA3mnugVHmf9zf9R47YvqSspnBzEaxwtNoK9DNXmS4JV';
-
+    const tnxAddress = '5AzADLZ5AByC9s9VSUTGENDiLfsU5esksPnyJHNmZkW2VHuPLEE2QWi9vthp4Q3wij9GPzL8VwnFDNgqsmgBCN2e';
+    const targetedWallet = new PublicKey('FukudCCa2hKbQxFAU3ZuwY3fAiNaLpkTWTBepGdY9hhz');
     const response = await connection.getTransaction(tnxAddress, {commitment: 'confirmed', maxSupportedTransactionVersion: 0});
     
     // Ensure response exists before processing
     expect(response).not.toBeNull();
 
     if (response) {
-      const tokenInfo = await tokenService.parseTradeInfo(response);
+      const tokenInfo = await tokenService.parseTradeInfo(response,targetedWallet);            
       expect(tokenInfo).not.toBeNull();
     }
   });
