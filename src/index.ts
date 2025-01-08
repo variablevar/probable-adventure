@@ -37,10 +37,27 @@ async function main() {
       console.log(`Server listening on port ${port}`);
     });
     
+    process.on('SIGINT', () => {
+      console.log('SIGINT signal received: Cleaning up resources...')
+      solanaService.removeAllListeners();
+      process.exit(0); // Exit the process
+    });
+    
+    process.on('SIGTERM', () => {
+      console.log('SIGTERM signal received: Cleaning up resources...');
+      solanaService.removeAllListeners();
+      process.exit(0);
+    });
+    
+    process.on('exit', (code) => {
+      console.log(`Process exited with code: ${code}`);
+      solanaService.removeAllListeners();
+    });
   } catch (error) {
     console.error('Error starting the bot:', error);
     process.exit(1);
   }
+
 }
 
 main();

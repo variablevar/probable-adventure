@@ -400,20 +400,21 @@ Need more help? Contact support at @yoursupport
 
   public async notifySubscribers(tradeInfo: TradeInfo) {
     const message = this.formatTradeMessage(tradeInfo);
-    console.log(message);
     
     for (const chatId of this.subscribers) {
       try {
-        await this.bot.telegram.sendMessage(chatId, message, { 
-          parse_mode: 'Markdown',
-          link_preview_options:{is_disabled:true}
-        });
+        if (message) { 
+          await this.bot.telegram.sendMessage(chatId, message, { 
+            parse_mode: 'Markdown',
+            link_preview_options:{is_disabled:true}
+          });
+        }
       } catch (error) {
         console.error(`Error notifying subscriber ${chatId}:`, error);
       }
     }
   }
-  private formatTradeMessage(tradeInfo: TradeInfo): string {
+  private formatTradeMessage(tradeInfo: TradeInfo): string | undefined{
     // Helper function to get the token symbol
     const getTokenSymbol = (token: TokenInfo | string): string => {
       if (typeof token === 'string') return token;
@@ -424,32 +425,29 @@ Need more help? Contact support at @yoursupport
     const tokenASymbol = tradeInfo.tokenA ? getTokenSymbol(tradeInfo.tokenA) : 'N/A';
     const tokenBSymbol = tradeInfo.tokenB ? getTokenSymbol(tradeInfo.tokenB) : 'N/A';
   
-    // Determine trade type and emoji
-    const tradeType = tradeInfo.type?.toUpperCase() || 'UNKNOWN';
-    const tradeEmoji = tradeType === 'buy' ? '🟢' : tradeType === 'sell' ? '🔴' : '❓';
-  
+    const getTradeEmoji =(tradeType:string)=> tradeType === 'IN' ? '🟢' : tradeType === 'OUT' ? '🔴' : '❓';
+
     // Format the timestamp
     const formattedTimestamp = tradeInfo.timestamp
       ? new Date(tradeInfo.timestamp).toLocaleString()
       : 'Unknown Time';
+    const tnxURL =`https://solscan.io/tx/${tradeInfo.txHash}`
   
-    // Format amount and price
-    const formattedAmount = tradeInfo.amount?.toFixed(2) || 'N/A';
-    const formattedPrice = tradeInfo.price?.toFixed(2) || 'N/A';
-  
-    // Include transaction hash if available
-    const txHash = tradeInfo.txHash ? `*Transaction Hash:* \`${tradeInfo.txHash}\`\n` : '';
-  
-    // Construct the message
-    return `
-  ${tradeEmoji} *${tradeType} Trade Alert!*
-  Type: \`${tradeType}\`
-  *Pair:* \`${tokenASymbol}/${tokenBSymbol}\`
-  *Amount:* \`${formattedAmount} ${tokenASymbol}\`
-  *Price:* \`${formattedPrice} ${tokenBSymbol}\`
-  *Time:* \`${formattedTimestamp}\`
-  ${txHash}
-    `;
+    if (tradeInfo.tokenA && typeof tradeInfo.tokenA != 'string' && tradeInfo.tokenB && typeof tradeInfo.tokenB != 'string' ) {
+      
+      // Construct the message
+      return `
+      🔔 *Trade Alert!*
+      
+      👤 *From:* \`${tradeInfo.targetedWallet}\`  
+      💱 *Pair:* \`${tokenASymbol}/${tokenBSymbol}\`  
+      💰 *Amount In:* of \`${tradeInfo.tokenA.symbol}\` ${getTradeEmoji(tradeInfo.tokenA.type)} \`${tradeInfo.tokenA.amount}\`  
+      💸 *Amount Out:* of \`${tradeInfo.tokenB.symbol}\` ${getTradeEmoji(tradeInfo.tokenB.type)} \`${tradeInfo.tokenB.amount}\`
+      🕒 *Time:* \`${formattedTimestamp}\`  
+      🔗 *Transaction Hash:* [View on Explorer](${tnxURL})  
+      `;
+      
+    }
   }
   
 

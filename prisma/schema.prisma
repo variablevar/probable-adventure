@@ -15,6 +15,7 @@ model Wallet {
   lastName    String?
   username    String?
   type        String?
+  subscribed  Boolean @default(true)
 
   targetWallets TargetWallet[] // Added relationship to TargetWallet
 }

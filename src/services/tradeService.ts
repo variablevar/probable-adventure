@@ -21,6 +21,8 @@ import BN from 'bn.js';
 import { Metaplex } from '@metaplex-foundation/js';
 import { ENV, TokenListProvider } from '@solana/spl-token-registry';
 export interface TokenInfo {
+  type: "IN" | "OUT";
+  amount?: number|string;
   mint: PublicKey;
   decimals: number;
   supply: number;
@@ -111,7 +113,7 @@ export class TradeService {
 
   private isRaydiumSwap(logs: string[]): boolean {
     return logs.some(log =>
-      log.includes('Program log: Instruction: Swap')
+      log.includes('Program log: Instruction: Swap') || log.includes('Program log: ray_log')
     );
   }
 
@@ -138,17 +140,20 @@ export class TradeService {
     const filterAccounts = this.compareBalances(preTokenBalances,postTokenBalances);
     const [tnxA,tnxB] = filterAccounts.filter((account)=> account.owner == targetedWallet.toBase58());
     
-    swapDetails.tokenA = await this.getTokenDetails(new PublicKey(tnxA.mint));
-    swapDetails.tokenB = await this.getTokenDetails(new PublicKey(tnxB.mint));
-
+    
     if (tnxA.type === 'IN') {
       swapDetails.amountIn = tnxA.amountDifference / (10 ** tnxA.decimals);
       swapDetails.amountOut = tnxB.amountDifference / (10 ** tnxB.decimals);
+      swapDetails.tokenA = await this.getTokenDetails(new PublicKey(tnxA.mint),'IN',swapDetails.amountIn);
+      swapDetails.tokenB = await this.getTokenDetails(new PublicKey(tnxB.mint),'OUT',swapDetails.amountOut);
     }else{
       swapDetails.amountIn = tnxB.amountDifference / (10 ** tnxB.decimals);
       swapDetails.amountOut = tnxA.amountDifference / (10 ** tnxA.decimals);  
+      swapDetails.tokenA = await this.getTokenDetails(new PublicKey(tnxA.mint),'OUT',swapDetails.amountOut);
+      swapDetails.tokenB = await this.getTokenDetails(new PublicKey(tnxB.mint),'IN',swapDetails.amountIn);
     }
     
+    swapDetails.txHash = txResponse.transaction.signatures[0];
     return swapDetails;
   }
 
@@ -207,7 +212,7 @@ export class TradeService {
     return balanceChanges;
   }
 
-  private async getTokenDetails(mintAddress: PublicKey): Promise<TokenInfo> {
+  private async getTokenDetails(mintAddress: PublicKey,type:'IN'|'OUT',amount:number): Promise<TokenInfo> {
  
     try {
       // Initialize connection
@@ -259,6 +264,8 @@ export class TradeService {
         freezeAuthority: mintInfo.freezeAuthority?.toBase58(),
         isInitialized: mintInfo.isInitialized,
         name,
+        type,
+        amount,
         symbol,
         uri,
         programId: TOKEN_PROGRAM_ID.toBase58()

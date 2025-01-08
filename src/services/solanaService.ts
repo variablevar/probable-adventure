@@ -11,12 +11,21 @@ import { WalletService } from './walletServie';
   export class SolanaService {
     private connection: Connection;
     private walletService: WalletService;
-  
+    private listenersIds: number[];
     constructor(private config: Config) {
       this.connection = new Connection(config.SOLANA_RPC_URL);
       this.walletService = new WalletService();
+      this.listenersIds = [];
     }
   
+    /**
+     * removeAllListeners
+     */
+    public async removeAllListeners() {
+      for (const listenerId of this.listenersIds) {
+        await this.connection.removeOnLogsListener(listenerId);
+      }
+    }
     public async createUserWallet(telegramId: string,firstName :string ,
         lastName :string  ,
         username :string  ,
@@ -42,7 +51,7 @@ import { WalletService } from './walletServie';
           for (const wallet of targetWallets) {
             console.log(`Monitoring wallet: ${wallet.toBase58()}`);
             
-            this.connection.onLogs(
+            const listenerId = this.connection.onLogs(
               wallet,
               async (logs) => {
                 console.log(`Received logs for wallet ${wallet.toBase58()}:`);
@@ -72,6 +81,7 @@ import { WalletService } from './walletServie';
               },
               'confirmed'
             );
+            this.listenersIds.push(listenerId);
           }
         } catch (error) {
           console.error('Error monitoring transactions:', error);
