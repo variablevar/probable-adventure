@@ -4,6 +4,7 @@
   "description": "Telegram bot for copy trading on Raydium/Solana",
   "main": "dist/index.js",
   "type": "commonjs",
+  "license":"MIT",
   "scripts": {
     "dev": "ts-node --project tsconfig.json src/index.ts",
     "build": "tsc",
