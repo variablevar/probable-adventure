@@ -17,7 +17,12 @@ async function main() {
     const walletService = new WalletService();
     const tradeService = new TradeService(config);
     const solanaService = new SolanaService(config);
-    const telegramBot = new TelegrafBotService(config, solanaService,tradeService,walletService);
+    const telegramBot = new TelegrafBotService(
+      config,
+      solanaService,
+      tradeService,
+      walletService,
+    );
 
     console.log('Starting Solana Copy Trading Bot...');
 
@@ -32,32 +37,28 @@ async function main() {
     app.post('/', (req, res) => {
       res.send('OK');
     });
-    
+
     app.listen(port, () => {
       console.log(`Server listening on port ${port}`);
     });
-    
-    process.on('SIGINT', () => {
-      console.log('SIGINT signal received: Cleaning up resources...')
-      solanaService.removeAllListeners();
+
+    process.on('SIGINT', async () => {
+      console.log('SIGINT signal received: Cleaning up resources...');
       process.exit(0); // Exit the process
     });
-    
-    process.on('SIGTERM', () => {
+
+    process.on('SIGTERM', async () => {
       console.log('SIGTERM signal received: Cleaning up resources...');
-      solanaService.removeAllListeners();
       process.exit(0);
     });
-    
-    process.on('exit', (code) => {
+
+    process.on('exit', async (code) => {
       console.log(`Process exited with code: ${code}`);
-      solanaService.removeAllListeners();
     });
   } catch (error) {
     console.error('Error starting the bot:', error);
     process.exit(1);
   }
-
 }
 
 main();

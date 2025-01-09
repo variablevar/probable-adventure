@@ -22,7 +22,7 @@ export function validateConfig(config: Config): void {
 
   if (missingKeys.length > 0) {
     throw new Error(
-      `Missing required environment variables: ${missingKeys.join(', ')}`
+      `Missing required environment variables: ${missingKeys.join(', ')}`,
     );
   }
 }
