@@ -6,12 +6,14 @@ export interface Config {
   TELEGRAM_BOT_TOKEN: string;
   SOLANA_RPC_URL: string;
   RAYDIUM_PROGRAM_ID: string;
+  ADMIN_USER_NAME: string;
 }
 
 export const config: Config = {
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN!,
   SOLANA_RPC_URL: process.env.SOLANA_RPC_URL!,
   RAYDIUM_PROGRAM_ID: process.env.RAYDIUM_PROGRAM_ID!,
+  ADMIN_USER_NAME: process.env.ADMIN_USER_NAME!,
 };
 
 // Validation function

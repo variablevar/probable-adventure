@@ -12,7 +12,6 @@
     "migrate:dev": "npx prisma migrate dev",
     "migrate:deploy": "npx prisma migrate deploy",
     "prisma:generate": "npx prisma generate",
-    "seed": "ts-node --project tsconfig.json prisma/seed.ts",
     "test": "jest"
   },
   "dependencies": {

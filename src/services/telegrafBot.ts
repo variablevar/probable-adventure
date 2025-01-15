@@ -77,7 +77,7 @@ Available Commands:
 /status - Check bot status
 /help - Show this help message
 
-Need more help? Contact support at @yoursupport
+Need more help? Contact support at @${this.config.ADMIN_USER_NAME}
       `;
       await ctx.reply(helpText);
     });
@@ -148,15 +148,15 @@ Need more help? Contact support at @yoursupport
       [Markup.button.callback('✅ Subscribe', 'subscribe')],
       [Markup.button.callback('❌ Unsubscribe', 'unsubscribe')],
       [Markup.button.callback('ℹ️ Status', 'status')],
-      [Markup.button.callback('ℹ️ Add Target Wallet', 'add_target_wallet')],
-      [Markup.button.callback('🔎 View Target Wallets', 'view_target_wallets')],
+      [
+        Markup.button.callback('ℹ️ Add Target Wallet', 'add_target_wallet'),
+        Markup.button.callback('🔎 View Target Wallets', 'view_target_wallets'),
+      ],
       [
         Markup.button.callback(
           '✏️ Update Target Wallet',
           'update_target_wallet',
         ),
-      ],
-      [
         Markup.button.callback(
           '❌ Delete Target Wallet',
           'delete_target_wallet',
@@ -509,9 +509,20 @@ Need more help? Contact support at @yoursupport
       const tradeMessage = {
         buy: '',
         sell: '',
+        message: '',
       };
 
       if (tradeInfo.tokenA.type == 'IN') {
+        if (
+          tradeInfo.tokenA.symbol &&
+          tradeInfo.tokenA.amount &&
+          ['USDC', 'USDT'].includes(tradeInfo.tokenA.symbol) &&
+          Number(tradeInfo.tokenA.amount) < 0
+        ) {
+          tradeMessage.message = `*BUY 🟢 ${tradeInfo.tokenB.symbol}*`;
+        } else {
+          tradeMessage.message = `*SELL 🔴 ${tradeInfo.tokenA.symbol}*`;
+        }
         tradeMessage.buy = `🟢 \`${tradeInfo.tokenA.amount}\` \`${tradeInfo.tokenA.symbol}\``;
         tradeMessage.sell = `🔴 \`${tradeInfo.tokenB.amount}\` \`${tradeInfo.tokenB.symbol}\``;
       } else {
@@ -520,8 +531,9 @@ Need more help? Contact support at @yoursupport
       }
       // Construct the message
       return `
-      🔔 *Trade Alert!*
-      
+      🔔 *Trade Alert!*\n
+
+      ${tradeMessage.message}
       👤 *From:* \`${tradeInfo.targetedWallet}\`  
       💱 *Pair:* \`${tokenASymbol}/${tokenBSymbol}\`  
       💰 *Amount Buy:* ${tradeMessage.buy}    
