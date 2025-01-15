@@ -120,7 +120,12 @@ export class TradeService {
   private isRaydiumSwap(logs: string[]): boolean {
     return logs.some(
       (log) =>
+        // for others swap
         log.includes('Program log: Instruction: Swap') ||
+        // for pump.fun
+        log.includes('Program log: Instruction: Buy') ||
+        log.includes('Program log: Instruction: Transfer') ||
+        // for raydium
         log.includes('Program log: ray_log'),
     );
   }

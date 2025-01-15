@@ -74,7 +74,7 @@ export class SolanaService {
             console.log(`Received logs for wallet ${wallet.toBase58()}:`);
 
             // Check if the transaction is Raydium related
-            if (this.isRaydiumTransaction(logs)) {
+            if (this.isSwapTransaction(logs)) {
               const signature = logs.signature;
               console.log(
                 `Transaction signature: ${signature} for wallet ${wallet.toBase58()}`,
@@ -121,9 +121,9 @@ export class SolanaService {
     }
   }
 
-  private isRaydiumTransaction(logs: any): boolean {
+  private isSwapTransaction(logs: any): boolean {
     return logs.logs.some((log: string) =>
-      log.includes(this.config.RAYDIUM_PROGRAM_ID),
+      this.config.PLATFORMS.some((programId) => log.includes(programId)),
     );
   }
 

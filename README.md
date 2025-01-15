@@ -54,7 +54,6 @@ Create a `.env` file in the project root and populate it with your configuration
 ```env
 TELEGRAM_BOT_TOKEN=
 SOLANA_RPC_URL=
-RAYDIUM_PROGRAM_ID=
 DATABASE_URL=
 ADMIN_USER_NAME=
 ```
@@ -66,14 +65,6 @@ Generate and deploy the database schema using Prisma:
 ```bash
 npm run migrate:dev
 npm run prisma:generate
-```
-
-### **Step 5**: Seed the Database
-
-Seed the database with initial data:
-
-```bash
-npm run seed
 ```
 
 ### **Step 6**: Start the Bot
@@ -88,16 +79,15 @@ npm run dev
 
 The following scripts are available in the `package.json` file:
 
-| Script                    | Description                                                          |
-| ------------------------- | -------------------------------------------------------------------- |
-| `npm run dev`             | Runs the application in development mode using `ts-node`.            |
-| `npm run build`           | Builds the application for production using TypeScript.              |
-| `npm run start`           | Starts the built application from the `dist` directory.              |
-| `npm run migrate:dev`     | Applies Prisma migrations in development mode.                       |
-| `npm run migrate:deploy`  | Deploys Prisma migrations in production.                             |
-| `npm run prisma:generate` | Generates Prisma client based on the schema.                         |
-| `npm run seed`            | Seeds the database with initial data using a TypeScript seed script. |
-| `npm run test`            | Runs tests using Jest.                                               |
+| Script                    | Description                                               |
+| ------------------------- | --------------------------------------------------------- |
+| `npm run dev`             | Runs the application in development mode using `ts-node`. |
+| `npm run build`           | Builds the application for production using TypeScript.   |
+| `npm run start`           | Starts the built application from the `dist` directory.   |
+| `npm run migrate:dev`     | Applies Prisma migrations in development mode.            |
+| `npm run migrate:deploy`  | Deploys Prisma migrations in production.                  |
+| `npm run prisma:generate` | Generates Prisma client based on the schema.              |
+| `npm run test`            | Runs tests using Jest.                                    |
 
 ---
 

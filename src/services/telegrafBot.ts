@@ -531,8 +531,7 @@ Need more help? Contact support at @${this.config.ADMIN_USER_NAME}
       }
       // Construct the message
       return `
-      🔔 *Trade Alert!*\n
-
+      🔔 *Trade Alert!*
       ${tradeMessage.message}
       👤 *From:* \`${tradeInfo.targetedWallet}\`  
       💱 *Pair:* \`${tokenASymbol}/${tokenBSymbol}\`  
