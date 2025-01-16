@@ -2,6 +2,8 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { TradeService } from '../services/tradeService';
 import { config } from '../config/config';
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 describe('TradeService Tests', () => {
   let tradeService: TradeService;
   let connection: Connection;
@@ -23,14 +25,14 @@ describe('TradeService Tests', () => {
       tnx: 'p8vkHeshnugTJRxgMKP9jEmrDxeQhXcp9hQKUy2BFhCJUhTy85SEF1xohqZqyPQdpvpSA314e3WWhjHw7SpoSYy',
       address: 'DuGv6ZscCJ5a7Y7r1zdXaWVKXxEpsELo2CzUcrrpyJDd',
     },
-    PUMPFUN: {
-      tnx: '3Q7SnqQyAZsxsFMkHR87j9Li6D4SZktiJrAX2EB82GFZYtkYVTdaxYtwcnhoCrkTupN2usXxAbaLDsrpsacf3BDM',
-      address: 'DuGv6ZscCJ5a7Y7r1zdXaWVKXxEpsELo2CzUcrrpyJDd',
-    },
-    FLUXBEAM: {
-      tnx: '4nmpzfGpfWTrsoAQ7SjLmykrmx1e3sKW9nZFZ8TjvXmAPaLDCJ82bhRd9GhGrQweXgsMrydhw1UGXv9pJYP5YYaW',
-      address: 'DuGv6ZscCJ5a7Y7r1zdXaWVKXxEpsELo2CzUcrrpyJDd',
-    },
+    // PUMPFUN: {
+    //   tnx: 'JgaH2xUSd4ZMzdAVsWFkKnDGv5QZ9LzAsB76cvm3xPGsf2m2pX9fhkKYvKom37KsM4awJpCn25XPnPMBgK1ioUH',
+    //   address: '8Guks2VzUi8zWqA92RamP8ps5tHFJg7vBV65MPmrt7yy',
+    // },
+    // FLUXBEAM: {
+    //   tnx: '4nmpzfGpfWTrsoAQ7SjLmykrmx1e3sKW9nZFZ8TjvXmAPaLDCJ82bhRd9GhGrQweXgsMrydhw1UGXv9pJYP5YYaW',
+    //   address: 'DuGv6ZscCJ5a7Y7r1zdXaWVKXxEpsELo2CzUcrrpyJDd',
+    // },
   };
 
   beforeEach(() => {
@@ -40,7 +42,7 @@ describe('TradeService Tests', () => {
 
   const fetchAndTestTradeInfo = async (platformKey: keyof typeof platforms) => {
     const { tnx, address } = platforms[platformKey];
-    const response = await connection.getTransaction(tnx, {
+    const response = await connection.getParsedTransaction(tnx, {
       commitment: 'confirmed',
       maxSupportedTransactionVersion: 0,
     });
@@ -52,8 +54,7 @@ describe('TradeService Tests', () => {
         response,
         new PublicKey(address),
       );
-      console.log(`Trade info for ${platformKey}:`, tokenInfo);
-
+      await sleep(2000);
       expect(tokenInfo).not.toBeNull();
     }
   };

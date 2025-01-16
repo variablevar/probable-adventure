@@ -52,7 +52,7 @@ export class SolanaService {
   public async monitorTransactions(
     targetWallets: string[], // Array of target wallets
     callback: (
-      transaction: VersionedTransactionResponse,
+      transaction: VersionedTransactionResponse | ParsedTransactionWithMeta,
       targetedWallet: string,
     ) => Promise<void>,
   ) {
@@ -73,7 +73,6 @@ export class SolanaService {
           async (logs) => {
             console.log(`Received logs for wallet ${wallet.toBase58()}:`);
 
-            // Check if the transaction is Raydium related
             if (this.isSwapTransaction(logs)) {
               const signature = logs.signature;
               console.log(
@@ -82,13 +81,11 @@ export class SolanaService {
 
               try {
                 // Fetch the raw transaction using the signature and commitment level
-                const rawTransaction = await this.connection.getTransaction(
-                  signature,
-                  {
+                const rawTransaction =
+                  await this.connection.getParsedTransaction(signature, {
                     commitment: 'confirmed',
                     maxSupportedTransactionVersion: 0,
-                  },
-                );
+                  });
 
                 if (rawTransaction) {
                   console.log(

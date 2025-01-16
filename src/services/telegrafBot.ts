@@ -1,15 +1,18 @@
 import { Telegraf, Context, Markup } from 'telegraf';
 import { Config } from '../config/config';
 import { SolanaService } from './solanaService';
-import { TokenInfo, TradeInfo, TradeService } from './tradeService';
+import { TradeService } from './tradeService';
 import { message } from 'telegraf/filters';
 import { PrismaClient } from '@prisma/client';
 import {
+  ParsedTransactionMeta,
+  ParsedTransactionWithMeta,
   PublicKey,
   VersionedTransaction,
   VersionedTransactionResponse,
 } from '@solana/web3.js';
 import { WalletService } from './walletServie';
+import { TokenInfo, TradeInfo } from '../interfaces';
 
 const prisma = new PrismaClient();
 
@@ -552,7 +555,7 @@ Need more help? Contact support at @${this.config.ADMIN_USER_NAME}
   }
 
   private async mapTradeNotifiction(
-    transaction: VersionedTransactionResponse,
+    transaction: VersionedTransactionResponse | ParsedTransactionWithMeta,
     targetedWallet: string,
   ) {
     const tradeInfo = await this.tradeService.parseTradeInfo(

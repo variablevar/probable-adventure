@@ -20,33 +20,8 @@ import { Config } from '../config/config';
 import BN from 'bn.js';
 import { Metaplex } from '@metaplex-foundation/js';
 import { ENV, TokenListProvider } from '@solana/spl-token-registry';
-export interface TokenInfo {
-  type: 'IN' | 'OUT';
-  amount?: number | string;
-  mint: PublicKey;
-  decimals: number;
-  supply: number;
-  mintAuthority: string | undefined;
-  freezeAuthority: string | undefined;
-  isInitialized: boolean;
-  name: string | null;
-  symbol: string | null;
-  uri: string | null;
-  programId: string;
-}
-export interface TradeInfo {
-  targetedWallet: string;
-  type?: 'buy' | 'sell';
-  tokenA?: TokenInfo | string;
-  tokenB?: TokenInfo | string;
-  amount?: number;
-  price?: number;
-  timestamp?: number;
-  amountIn?: number;
-  amountOut?: number;
-  slippage?: number;
-  txHash?: string;
-}
+import { SwapPlatfrom } from '../utils/platforms';
+import { TokenInfo, TradeInfo } from '../interfaces';
 
 interface RaydiumPool {
   id: string;
@@ -85,7 +60,7 @@ export class TradeService {
   }
 
   public async parseTradeInfo(
-    transaction: VersionedTransactionResponse,
+    transaction: VersionedTransactionResponse | ParsedTransactionWithMeta,
     targetedWallet: PublicKey,
   ): Promise<Partial<TradeInfo> | null> {
     try {
@@ -95,8 +70,7 @@ export class TradeService {
 
       const logs = transaction.meta.logMessages;
 
-      // Check if it's a Raydium swap
-      if (!this.isRaydiumSwap(logs)) {
+      if (!this.isAnySwap(logs)) {
         return null;
       }
 
@@ -117,21 +91,28 @@ export class TradeService {
     }
   }
 
-  private isRaydiumSwap(logs: string[]): boolean {
+  private isAnySwap(logs: string[]): boolean {
+    return (
+      logs.some(
+        (log) =>
+          // for others swap
+          log.includes('Program log: Instruction: Swap') ||
+          // for raydium
+          log.includes('Program log: ray_log'),
+      ) || this.isPumpFunSwap(logs)
+    );
+  }
+
+  private isPumpFunSwap(logs: string[]): boolean {
     return logs.some(
       (log) =>
-        // for others swap
-        log.includes('Program log: Instruction: Swap') ||
-        // for pump.fun
         log.includes('Program log: Instruction: Buy') ||
-        log.includes('Program log: Instruction: Transfer') ||
-        // for raydium
-        log.includes('Program log: ray_log'),
+        log.includes('Program log: Instruction: Transfer'),
     );
   }
 
   private async decodeSwapInstruction(
-    txResponse: VersionedTransactionResponse,
+    txResponse: VersionedTransactionResponse | ParsedTransactionWithMeta,
     targetedWallet: PublicKey,
   ): Promise<Partial<TradeInfo>> {
     if (!txResponse) {
@@ -250,7 +231,7 @@ export class TradeService {
     return balanceChanges;
   }
 
-  private async getTokenDetails(
+  public async getTokenDetails(
     mintAddress: PublicKey,
     type: 'IN' | 'OUT',
     amount: number,
