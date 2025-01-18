@@ -1,7 +1,7 @@
 {
   "name": "solana-ghost",
-  "version": "1.0.0",
-  "description": "Telegram bot for copy trading on Raydium/Solana",
+  "version": "1.2.0",
+  "description": "Telegram bot for copy trading on solana accross various platform",
   "main": "dist/index.js",
   "type": "commonjs",
   "license": "MIT",
