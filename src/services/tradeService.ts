@@ -212,20 +212,6 @@ export class TradeService {
           });
         }
       }
-      /* else {
-        // Handle case where the token is not found in postTokenBalances
-        balanceChanges.push({
-          mint: pre.mint,
-          owner: pre.owner,
-          preAmount: parseFloat(pre.uiTokenAmount.amount),
-          postAmount: 0,
-          amountDifference: -parseFloat(pre.uiTokenAmount.amount),
-          type: 'OUT',
-          programId: pre.programId,
-          decimals: pre.uiTokenAmount.decimals,
-          uiAmountString: pre.uiTokenAmount.uiAmountString,
-        });
-      } */
     }
 
     return balanceChanges;

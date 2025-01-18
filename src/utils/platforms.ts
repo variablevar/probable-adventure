@@ -5,4 +5,5 @@ export enum SwapPlatfrom {
   RAYDIUM = 3,
   PUMP_FUN = 4,
   FLUX_BEAM = 5,
+  JUPITER = 6,
 }

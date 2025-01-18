@@ -1,6 +1,7 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 import { TradeService } from '../services/tradeService';
 import { config } from '../config/config';
+import { writeFileSync } from 'fs';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -54,7 +55,6 @@ describe('TradeService Tests', () => {
         response,
         new PublicKey(address),
       );
-      await sleep(2000);
       expect(tokenInfo).not.toBeNull();
     }
   };
@@ -64,6 +64,12 @@ describe('TradeService Tests', () => {
       keyof typeof platforms
     >) {
       await fetchAndTestTradeInfo(platformKey);
+      await sleep(5000);
     }
+  });
+
+  // TODO: PUMP FUN & FLUXBEAM PARSING
+  xit('should fetch trade info for pump.fun platform', async () => {
+    // await fetchAndTestTradeInfo('PUMPFUN');
   });
 });

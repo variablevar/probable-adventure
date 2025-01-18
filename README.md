@@ -114,13 +114,14 @@ The following scripts are available in the `package.json` file:
 
 ## Contributing
 
-Contributions are welcome! Please follow these steps:
+We welcome contributions! Please follow these steps:
 
-1. Create a new branch (`feature/my-feature`).
-2. Commit your changes.
-3. Open a pull request.
+1. **Fork the repository**.
+2. **Create a new branch**: Use a descriptive name like `feature/my-feature`.
+3. **Commit your changes**: Write clear and concise commit messages.
+4. **Open a pull request**: Provide details about the changes and their purpose.
 
----
+## Thank you for helping improve the project!
 
 ## License
 
