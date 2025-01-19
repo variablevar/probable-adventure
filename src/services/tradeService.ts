@@ -107,7 +107,8 @@ export class TradeService {
     return logs.some(
       (log) =>
         log.includes('Program log: Instruction: Buy') ||
-        log.includes('Program log: Instruction: Transfer'),
+        (log.includes('Program log: Instruction: Transfer') &&
+          log.includes(this.config.PLATFORMS_BY_KEY.PUMP_FUN_PROGRAM_ID)),
     );
   }
 
@@ -117,59 +118,212 @@ export class TradeService {
   ): Promise<Partial<TradeInfo>> {
     if (!txResponse) {
       console.log('Transaction not found');
+      return {};
     }
 
     const { transaction, meta, blockTime } = txResponse;
-
-    if (!transaction || !meta) {
-      console.log('Incomplete transaction data');
-    }
-
-    // Initialize swap details object
     const swapDetails: Partial<TradeInfo> = {
       timestamp: blockTime ? blockTime * 1000 : Date.now(),
     };
 
+    if (!transaction || !meta) {
+      console.log('Incomplete transaction data');
+      return swapDetails;
+    }
+
+    swapDetails.txHash = txResponse.transaction.signatures[0];
+    // If the transaction matches PumpFunSwap criteria, process it
+    if (meta.logMessages && this.isPumpFunSwap(meta.logMessages)) {
+      return this.processPumpFunSwap(meta, txResponse, swapDetails);
+    }
+
+    // Process token balance differences for general swaps
+    await this.processBalanceDifferences(meta, targetedWallet, swapDetails);
+
+    return swapDetails;
+  }
+
+  // Process PumpFunSwap specific transactions
+  private async processPumpFunSwap(
+    meta: any,
+    txResponse: VersionedTransactionResponse | ParsedTransactionWithMeta,
+    swapDetails: Partial<TradeInfo>,
+  ): Promise<Partial<TradeInfo>> {
+    const instructions = meta.innerInstructions || [];
+    const transferInstruction: any = { mintAddress: '' };
+    const systemTransfers: any[] = [];
+
+    // Parse all inner instructions
+    this.parseInstructions(instructions, transferInstruction, systemTransfers);
+
+    const { amount, authority, destination, source } =
+      transferInstruction.parsed?.info || {};
+    if (!amount || !authority || !destination || !source) return swapDetails;
+
+    const buy = this.findSystemTransfer(
+      systemTransfers,
+      'destination',
+      authority,
+    );
+    const sell = this.findSystemTransfer(systemTransfers, 'source', authority);
+
+    if (buy || sell) {
+      return this.populateSwapDetails(
+        buy,
+        sell,
+        transferInstruction.mintAddress,
+        amount,
+        txResponse,
+        swapDetails,
+      );
+    }
+
+    return swapDetails;
+  }
+
+  // Parse instructions to extract transfer details
+  private parseInstructions(
+    instructions: any[],
+    transferInstruction: any,
+    systemTransfers: any[],
+  ): void {
+    const processInstruction = (parsedInstruction: any) => {
+      const { program, parsed, accounts } = parsedInstruction || {};
+
+      if (accounts?.length >= 3) {
+        transferInstruction.mintAddress = accounts[2];
+      }
+      if (program === 'spl-token' && parsed?.type === 'transfer') {
+        Object.assign(transferInstruction, parsedInstruction);
+      }
+      if (program === 'system' && parsed?.type === 'transfer') {
+        systemTransfers.push(parsedInstruction);
+      }
+    };
+
+    instructions.forEach((instruction) =>
+      instruction.instructions?.forEach(processInstruction),
+    );
+  }
+
+  // Find specific system transfer based on source or destination
+  private findSystemTransfer(
+    systemTransfers: any[],
+    key: 'source' | 'destination',
+    value: string,
+  ): any {
+    return systemTransfers.find(
+      (program) => program.parsed.info[key] === value,
+    );
+  }
+
+  // Populate swap details for PumpFunSwap
+  private async populateSwapDetails(
+    buy: any,
+    sell: any,
+    mintAddress: string,
+    amount: number,
+    txResponse: VersionedTransactionResponse | ParsedTransactionWithMeta,
+    swapDetails: Partial<TradeInfo>,
+  ): Promise<Partial<TradeInfo>> {
+    const isBuy = !!buy;
+    const relevantTransfer = isBuy ? buy : sell;
+
+    const tokenDetails = await this.getTokenDetails(
+      new PublicKey(mintAddress),
+      isBuy ? 'IN' : 'OUT',
+    );
+
+    const lamports = relevantTransfer.parsed.info.lamports;
+    const tokenAmount = amount / 10 ** tokenDetails.decimals;
+    const solAmount = lamports / 1e9;
+
+    swapDetails.amount = lamports;
+    swapDetails.tokenA = {
+      ...tokenDetails,
+      amount: isBuy ? tokenAmount : solAmount,
+    };
+    swapDetails.tokenB = <TokenInfo>{
+      decimals: 9,
+      amount: isBuy ? solAmount : tokenAmount,
+      name: 'solana',
+      symbol: 'SOL',
+      type: isBuy ? 'OUT' : 'IN',
+    };
+    swapDetails.amountIn = isBuy ? tokenAmount : solAmount;
+    swapDetails.amountOut = isBuy ? solAmount : tokenAmount;
+    swapDetails.txHash = txResponse.transaction.signatures[0];
+
+    return swapDetails;
+  }
+
+  // Process token balance differences for general swaps
+  private async processBalanceDifferences(
+    meta: any,
+    targetedWallet: PublicKey,
+    swapDetails: Partial<TradeInfo>,
+  ): Promise<Partial<TradeInfo>> {
+    if (!meta) {
+      console.error('Incomplete transaction data');
+      return swapDetails; // Exit early as there's nothing to process
+    }
+
     const preTokenBalances = meta?.preTokenBalances || [];
     const postTokenBalances = meta?.postTokenBalances || [];
 
+    // Compare balances to find relevant accounts
     const filterAccounts = this.compareBalances(
       preTokenBalances,
       postTokenBalances,
     );
+
+    if (!filterAccounts || filterAccounts.length < 2) {
+      console.error('Unable to determine accounts involved in the swap');
+      return swapDetails;
+    }
+
+    // Filter accounts belonging to the targeted wallet
     const [tnxA, tnxB] = filterAccounts.filter(
-      (account) => account.owner == targetedWallet.toBase58(),
+      (account) => account.owner === targetedWallet.toBase58(),
     );
 
+    if (!tnxA || !tnxB) {
+      console.error('Missing token transfer data for the targeted wallet');
+      return swapDetails;
+    }
+
+    // Determine the direction of the swap and populate details
     if (tnxA.type === 'IN') {
       swapDetails.amountIn = tnxA.amountDifference / 10 ** tnxA.decimals;
       swapDetails.amountOut = tnxB.amountDifference / 10 ** tnxB.decimals;
+
       swapDetails.tokenA = await this.getTokenDetails(
         new PublicKey(tnxA.mint),
         'IN',
         swapDetails.amountIn,
       );
+
       swapDetails.tokenB = await this.getTokenDetails(
         new PublicKey(tnxB.mint),
         'OUT',
         swapDetails.amountOut,
       );
-    } else {
+    } else if (tnxA.type === 'OUT') {
       swapDetails.amountIn = tnxB.amountDifference / 10 ** tnxB.decimals;
       swapDetails.amountOut = tnxA.amountDifference / 10 ** tnxA.decimals;
+
       swapDetails.tokenA = await this.getTokenDetails(
         new PublicKey(tnxA.mint),
         'OUT',
         swapDetails.amountOut,
       );
+
       swapDetails.tokenB = await this.getTokenDetails(
         new PublicKey(tnxB.mint),
         'IN',
         swapDetails.amountIn,
       );
     }
-
-    swapDetails.txHash = txResponse.transaction.signatures[0];
     return swapDetails;
   }
 
@@ -220,7 +374,7 @@ export class TradeService {
   public async getTokenDetails(
     mintAddress: PublicKey,
     type: 'IN' | 'OUT',
-    amount: number,
+    amount?: number,
   ): Promise<TokenInfo> {
     try {
       // Initialize connection

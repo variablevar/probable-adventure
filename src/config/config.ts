@@ -17,6 +17,7 @@ export interface Config {
   TELEGRAM_BOT_TOKEN: string;
   SOLANA_RPC_URL: string;
   PLATFORMS: string[];
+  PLATFORMS_BY_KEY: typeof platforms;
   ADMIN_USER_NAME: string;
 }
 
@@ -24,6 +25,7 @@ export const config: Config = {
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN!,
   SOLANA_RPC_URL: process.env.SOLANA_RPC_URL!,
   PLATFORMS: Object.values(platforms),
+  PLATFORMS_BY_KEY: platforms,
   ADMIN_USER_NAME: process.env.ADMIN_USER_NAME!,
 };
 

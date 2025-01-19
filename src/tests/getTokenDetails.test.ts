@@ -26,10 +26,10 @@ describe('TradeService Tests', () => {
       tnx: 'p8vkHeshnugTJRxgMKP9jEmrDxeQhXcp9hQKUy2BFhCJUhTy85SEF1xohqZqyPQdpvpSA314e3WWhjHw7SpoSYy',
       address: 'DuGv6ZscCJ5a7Y7r1zdXaWVKXxEpsELo2CzUcrrpyJDd',
     },
-    // PUMPFUN: {
-    //   tnx: 'JgaH2xUSd4ZMzdAVsWFkKnDGv5QZ9LzAsB76cvm3xPGsf2m2pX9fhkKYvKom37KsM4awJpCn25XPnPMBgK1ioUH',
-    //   address: '8Guks2VzUi8zWqA92RamP8ps5tHFJg7vBV65MPmrt7yy',
-    // },
+    PUMPFUN: {
+      tnx: 'JgaH2xUSd4ZMzdAVsWFkKnDGv5QZ9LzAsB76cvm3xPGsf2m2pX9fhkKYvKom37KsM4awJpCn25XPnPMBgK1ioUH',
+      address: '8Guks2VzUi8zWqA92RamP8ps5tHFJg7vBV65MPmrt7yy',
+    },
     // FLUXBEAM: {
     //   tnx: '4nmpzfGpfWTrsoAQ7SjLmykrmx1e3sKW9nZFZ8TjvXmAPaLDCJ82bhRd9GhGrQweXgsMrydhw1UGXv9pJYP5YYaW',
     //   address: 'DuGv6ZscCJ5a7Y7r1zdXaWVKXxEpsELo2CzUcrrpyJDd',
@@ -55,6 +55,8 @@ describe('TradeService Tests', () => {
         response,
         new PublicKey(address),
       );
+      console.log(tokenInfo);
+
       expect(tokenInfo).not.toBeNull();
     }
   };
@@ -69,7 +71,7 @@ describe('TradeService Tests', () => {
   });
 
   // TODO: PUMP FUN & FLUXBEAM PARSING
-  xit('should fetch trade info for pump.fun platform', async () => {
-    // await fetchAndTestTradeInfo('PUMPFUN');
+  it('should fetch trade info for pump.fun platform', async () => {
+    await fetchAndTestTradeInfo('PUMPFUN');
   });
 });

@@ -25,7 +25,7 @@ This Telegram bot enables users to monitor specified Solana wallets for transact
 ### **Dependencies**
 
 - `@solana/web3.js`: Interact with Solana blockchain.
-- `node-telegram-bot-api`: Interface with Telegram Bot API.
+- `telegraf`: Interface with Telegram Bot API.
 - `dotenv`: Manage environment variables.
 - `prisma`: For database management and migrations.
 - `jest`: For testing the application.
