@@ -14,6 +14,10 @@ This Telegram bot enables users to monitor specified Solana wallets for transact
 
 ---
 
+## How it's look like now
+
+![image](https://github.com/user-attachments/assets/082abc7f-8ce9-41d9-9a36-821ef66bd08c)
+
 ## Requirements
 
 ### **Environment**
