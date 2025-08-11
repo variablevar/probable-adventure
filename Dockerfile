@@ -1,29 +1,40 @@
-# Use official Node.js 18 image
-FROM node:18
+# ---------- Stage 1: Build ----------
+FROM node:18 AS builder
 
-# Set working directory
 WORKDIR /usr/src/app
 
-# Install dependencies
-COPY package.json package-lock.json ./
+# Install dependencies (including dev dependencies for building)
+COPY package*.json ./
 RUN npm install
 
-# Copy bot source code
+# Copy source code
 COPY . .
 
-# Create persistent volume for node_modules (optional) and database
-VOLUME ["/usr/src/app/node_modules"]
-VOLUME ["/usr/src/app/prisma"]
-
-# Pass environment variables at runtime (from compose or .env)
-ENV NODE_ENV=production
-
-# Build the app (if using TypeScript)
+# Build TypeScript
 RUN npm run build
 
-# Run migrations and generate Prisma client
-RUN npm run migrate:dev
-RUN npm run prisma:generate
+# Generate Prisma client
+RUN npx prisma generate
 
-# Start the bot
-CMD ["npm", "run", "start"]
+# ---------- Stage 2: Production ----------
+FROM node:18-alpine
+
+WORKDIR /usr/src/app
+
+# Install only production dependencies
+COPY package*.json ./
+RUN npm install --production
+
+# Copy built files and node_modules from builder
+COPY --from=builder /usr/src/app/dist ./dist
+COPY --from=builder /usr/src/app/node_modules ./node_modules
+COPY --from=builder /usr/src/app/prisma ./prisma
+
+# Set environment for production
+ENV NODE_ENV=production
+
+# Mount Prisma directory (for schema and migration persistence)
+VOLUME ["/usr/src/app/prisma"]
+
+# Start the bot (customize entry point if different)
+CMD ["node", "dist/index.js"]

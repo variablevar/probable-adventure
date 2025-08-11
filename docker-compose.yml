@@ -11,17 +11,9 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_USER_NAME=${ADMIN_USER_NAME}
     volumes:
-      - node_modules:/usr/src/app/node_modules
-      - prisma:/usr/src/app/prisma
+      - ./prisma:/usr/src/app/prisma
     networks:
       - ghostnet
-    # Typically no exposed port needed for Telegram bots
-    # If you wish to expose, use 'ports:'
-    # ports: [ "3000:3000" ]
-
-volumes:
-  node_modules:
-  prisma:
 
 networks:
   ghostnet:
