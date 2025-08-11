@@ -10,6 +10,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Generate Prisma ORM
+RUN npm run prisma:generate
+
 # Build TypeScript
 RUN npm run build
 
