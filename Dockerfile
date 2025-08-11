@@ -16,9 +16,6 @@ RUN npm run prisma:generate
 # Build TypeScript
 RUN npm run build
 
-# Generate Prisma client
-RUN npx prisma generate
-
 # ---------- Stage 2: Production ----------
 FROM node:18-alpine
 
