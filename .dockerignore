@@ -1,0 +1,43 @@
+# Node dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# TypeScript build cache
+dist
+out
+tsconfig.tsbuildinfo
+
+# Prisma generated & cache (keep schema and migrations)
+.prisma/
+!prisma/schema.prisma
+!prisma/migrations/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git and environment files
+.git
+.gitignore
+.env
+.env.local
+.env.*.local
+
+# Docker files
+Dockerfile*
+.dockerignore
+
+# Tests and coverage
+coverage
+*.test.js
+*.spec.js
+*.test.ts
+*.spec.ts
+jest.config.js
+
+# Editor configs
+.idea/
+.vscode/
+*.swp
