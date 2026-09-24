@@ -13,6 +13,8 @@ import {
 } from '@solana/web3.js';
 import { WalletService } from './walletServie';
 import { TokenInfo, TradeInfo } from '../interfaces';
+import { Connection } from '@solana/web3.js';
+import { JupiterVenue, jupiterHttp } from '../venues/jupiter';
 
 const prisma = new PrismaClient();
 
@@ -24,6 +26,7 @@ interface BotContext extends Context {
 
 export class TelegrafBotService {
   private bot: Telegraf<BotContext>;
+  private readonly jupiter: JupiterVenue;
   private subscribers: Set<string>;
   private awaitingAddresses: Map<string, Function> = new Map();
 
@@ -34,6 +37,10 @@ export class TelegrafBotService {
     private targetWalletService: WalletService,
   ) {
     this.bot = new Telegraf<BotContext>(config.TELEGRAM_BOT_TOKEN);
+    this.jupiter = new JupiterVenue(
+      new Connection(config.SOLANA_RPC_URL),
+      jupiterHttp(process.env.JUPITER_API_KEY || ''),
+    );
     this.subscribers = new Set(['1043021263', '1058210219', '5093421993']);
     this.setupMiddleware();
     this.setupCommands();
@@ -51,6 +58,41 @@ export class TelegrafBotService {
   }
 
   private setupCommands() {
+    this.bot.command('quote', async (ctx) => {
+      if (ctx.chat.type !== 'private') return;
+      const parts = ctx.message.text.trim().split(/\s+/).slice(1);
+      if (parts.length !== 5) {
+        await ctx.reply(
+          'Usage: /quote INPUT_MINT OUTPUT_MINT AMOUNT_ATOMIC INPUT_DECIMALS SLIPPAGE_BPS\nRead-only: amounts are integer base units.',
+        );
+        return;
+      }
+      try {
+        const owner = await this.targetWalletService.getUserWalletPublicKey(
+          String(ctx.from.id),
+        );
+        if (!owner) {
+          await ctx.reply('Create a wallet first with /wallet.');
+          return;
+        }
+        const [inputMint, outputMint, amountAtomic, decimals, slippage] = parts;
+        const quote = await this.jupiter.quote({
+          owner,
+          inputMint,
+          outputMint,
+          amountAtomic,
+          inputDecimals: Number(decimals),
+          slippageBps: Number(slippage),
+        });
+        await ctx.reply(
+          `Quote only — no swap submitted.\nExpected output: ${quote.outputAmountAtomic} base units\nMinimum output: ${quote.minimumOutputAtomic} base units\nOutput mint: ${outputMint}\nExpires: ${new Date(quote.expiresAt).toISOString()}`,
+        );
+      } catch (error) {
+        await ctx.reply(
+          `Quote unavailable: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+      }
+    });
     // Start command
     this.bot.command('start', async (ctx) => {
       const keyboard = Markup.inlineKeyboard([
@@ -78,6 +120,7 @@ Available Commands:
 /subscribe - Start copy trading
 /unsubscribe - Stop copy trading
 /status - Check bot status
+/quote - Preview a Jupiter route (read-only; no swap submitted)
 /help - Show this help message
 
 Need more help? Contact support at @${this.config.ADMIN_USER_NAME}

@@ -10,6 +10,7 @@ services:
       - SOLANA_RPC_URL=${SOLANA_RPC_URL}
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_USER_NAME=${ADMIN_USER_NAME}
+      - JUPITER_API_KEY=${JUPITER_API_KEY:-}
     volumes:
       - ./prisma:/usr/src/app/prisma
     networks:

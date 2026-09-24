@@ -1,0 +1,31 @@
+{
+  "inputMint": "So11111111111111111111111111111111111111112",
+  "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "inAmount": "100000000",
+  "outAmount": "17057460",
+  "otherAmountThreshold": "16886885",
+  "swapMode": "ExactIn",
+  "slippageBps": 100,
+  "routePlan": [
+    {
+      "percent": 100,
+      "swapInfo": {
+        "ammKey": "HXpGFJGCEEFdV31tDmjDBaJMEB1fKLiAoKoWr3Fnonid",
+        "label": "Meteora DLMM",
+        "inputMint": "So11111111111111111111111111111111111111112",
+        "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "inAmount": "100000000",
+        "outAmount": "17057460"
+      }
+    }
+  ],
+  "swapInstruction": {
+    "programId": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+    "accounts": [],
+    "data": ""
+  },
+  "setupInstructions": [],
+  "otherInstructions": [],
+  "cleanupInstruction": null,
+  "addressesByLookupTableAddress": {}
+}
